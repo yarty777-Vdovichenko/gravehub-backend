@@ -157,3 +157,11 @@ model Review {
   employee EmployeeProfile @relation(fields: [employeeId],references: [id])
   customer User @relation(fields: [customerId],references: [id])
 }
+
+model Review {
+  id String @id @default(uuid())
+  contractId String
+  employeeId String
+  customerId String
+  rating Int
+  text String
