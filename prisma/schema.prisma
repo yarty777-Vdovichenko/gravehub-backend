@@ -1,0 +1,159 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BurialStatus {
+  available
+  reserved
+  sold
+}
+
+enum UserStatus {
+  active
+  blocked
+}
+
+enum Role {
+  customer
+  employee
+}
+
+enum EmployeeStatus {
+  available
+  busy
+  offline
+}
+
+enum ContractStatus {
+  active
+  finished
+  cancelled
+}
+
+enum ProposalStatus {
+  pending
+  accepted
+  rejected
+  cancelled
+}
+
+model User {
+  id String @id @default(uuid())
+  email String @unique
+  passwordHash String
+  name String
+  status UserStatus
+  createdAt DateTime @default(now())
+  roles Role[]
+  activeMode Role
+  employeeProfile EmployeeProfile?
+  contracts Contract[]
+  reviews   Review[]
+  burialPlots BurialPlot[]
+}
+
+model EmployeeProfile {
+  id String @id @default(uuid())
+  specializationId String
+  description String
+  regions Regions[]
+  status EmployeeStatus
+  rating Float
+  completedContracts Int
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+  specialization   Service @relation(fields: [specializationId], references: [id])
+  contracts  Contract[]
+  proposals  Proposal[]
+  reviews    Review[]
+}
+
+model Regions {
+  id String @id @default(uuid())
+  name String
+  employees EmployeeProfile[]
+}
+
+model Contract {
+  id String @id @default(uuid())
+  title String
+  description String
+  serviceTypeId String
+  customerId String 
+  city String
+  positionX Int
+  positionY Int
+  date DateTime
+  budget Float
+  createdAt DateTime @default(now())
+  employeeId String?
+  status ContractStatus
+  employee EmployeeProfile? @relation(fields: [employeeId],references: [id])
+  customer User @relation(fields: [customerId],references: [id])
+  serviceType   Service @relation(fields: [serviceTypeId], references: [id])
+  proposals  Proposal[]
+  reviews    Review[]
+}
+
+model Service {
+  id String @id @default(uuid())
+  name String
+  description String
+  price Float
+  employeeProfile EmployeeProfile[]
+  contract Contract[]
+}
+
+model Proposal {
+  id String @id @default(uuid())
+  contractId String
+  employeeId String
+  price Float
+  comment String
+  status ProposalStatus
+  createdAt DateTime @default(now())
+  contract Contract @relation(fields: [contractId],references: [id])
+  employee EmployeeProfile @relation(fields: [employeeId],references: [id])
+}
+
+model Cemetry {
+  id    String       @id @default(uuid())
+  name  String
+  city  String
+  plots BurialPlot[]
+}
+
+model BurialPlot {
+  id String @id @default(uuid())
+  positionX Int
+  positionY Int
+  status BurialStatus
+  ownerId String?
+  cemeteryId String
+  user User? @relation(fields: [ownerId],references: [id])
+  cemetry Cemetry @relation(fields: [cemeteryId],references: [id])
+}
+
+model Review {
+  id String @id @default(uuid())
+  contractId String
+  employeeId String
+  customerId String
+  rating Int
+  text String
+  createdAt DateTime @default(now())
+  contract Contract @relation(fields: [contractId],references: [id])
+  employee EmployeeProfile @relation(fields: [employeeId],references: [id])
+  customer User @relation(fields: [customerId],references: [id])
+}
