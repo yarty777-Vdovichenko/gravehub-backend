@@ -84,7 +84,7 @@ export class AuthService {
               status: 'available',
               rating: 0,
               completedContracts: 0,
-              specializations: {
+              specialization: {
                 connect: specializationIds.map((id) => ({ id })),
               },
               regions: { connect: regionIds.map((id) => ({ id })) },
@@ -121,7 +121,7 @@ export class AuthService {
       expiresIn: '15m',
     });
     const refreshToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET,
+      secret: process.env.JWT_REFRESH_SECRET!,
       expiresIn: '7d',
     });
 
@@ -136,11 +136,11 @@ export class AuthService {
   private generateTokens(userId: string, role: string) {
     const payload = { sub: userId, role };
     const accessToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_ACCESS_SECRET,
+      secret: process.env.JWT_ACCESS_SECRET!,
       expiresIn: '15m',
     });
     const refreshToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET,
+      secret: process.env.JWT_REFRESH_SECRET!,
       expiresIn: '7d',
     });
     return { accessToken, refreshToken };
@@ -182,7 +182,7 @@ export class AuthService {
       );
     }
 
-    const regions = await this.prisma.regions.findMany({
+    const regions = await this.prisma.region.findMany({
       where: { id: { in: dto.regionIds } },
     });
     if (regions.length !== dto.regionIds.length) {
@@ -205,7 +205,7 @@ export class AuthService {
           status: 'available',
           rating: 0,
           completedContracts: 0,
-          specializations: {
+          specialization: {
             connect: dto.specializationIds.map((id) => ({ id })),
           },
           regions: { connect: dto.regionIds.map((id) => ({ id })) },
