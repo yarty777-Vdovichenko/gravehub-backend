@@ -1,0 +1,23 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Gemini AI Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+      - name: AI Code Review
+        uses: jgunnink/gemini-review-bot@v1
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          model: gemini-3.5-flash-lite
