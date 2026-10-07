@@ -11,7 +11,7 @@ import bcrypt from 'bcrypt';
 import { RegisterUserDTO } from './dto/RegisterUser.dto';
 import { Prisma } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { EmployeeProfileDTO } from './dto/EmployeeProfile.dto';
 
 @Injectable()
@@ -20,9 +20,13 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
   ) {}
+  hashToken = (token: string) => {
+    return createHash('sha256').update(token).digest('hex');
+  };
+
   async login(dto: LoginUserDTO) {
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email: dto.email.trim().toLowerCase() },
     });
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
@@ -31,7 +35,6 @@ export class AuthService {
   }
 
   async register(dto: RegisterUserDTO) {
-    const hash = await bcrypt.hash(dto.password, 10);
     const userId = randomUUID();
 
     if (dto.role === 'employee') {
@@ -59,12 +62,15 @@ export class AuthService {
         throw new BadRequestException('One or more regionIds are invalid');
       }
     }
+
+    const hash = await bcrypt.hash(dto.password, 10);
+
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.user.create({
           data: {
             id: userId,
-            email: dto.email,
+            email: dto.email.trim().toLowerCase(),
             passwordHash: hash,
             name: dto.name,
             roles: [dto.role],
@@ -106,10 +112,10 @@ export class AuthService {
 
   async refresh(userId: string, refreshToken: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.hashedRefreshToken) throw new ForbiddenException();
+    if (!user?.hashedRefreshToken) throw new UnauthorizedException();
 
-    const matches = await bcrypt.compare(refreshToken, user.hashedRefreshToken);
-    if (!matches) throw new ForbiddenException();
+    const matches = this.hashToken(refreshToken) === user.hashedRefreshToken;
+    if (!matches) throw new UnauthorizedException();
 
     return this.issueTokens(user.id, user.activeMode);
   }
@@ -124,24 +130,12 @@ export class AuthService {
       expiresIn: '7d',
     });
 
-    const hashedRt = await bcrypt.hash(refreshToken, 10);
+    const hashedRt = this.hashToken(refreshToken);
     await this.prisma.user.update({
       where: { id: userId },
       data: { hashedRefreshToken: hashedRt },
     });
 
-    return { accessToken, refreshToken };
-  }
-  private generateTokens(userId: string, role: string) {
-    const payload = { sub: userId, role };
-    const accessToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_ACCESS_SECRET!,
-      expiresIn: '15m',
-    });
-    const refreshToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET!,
-      expiresIn: '7d',
-    });
     return { accessToken, refreshToken };
   }
 

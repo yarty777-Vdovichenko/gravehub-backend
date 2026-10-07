@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsEnum,
   IsString,
+  MaxLength,
   MinLength,
   ValidateIf,
   ValidateNested,
@@ -17,6 +18,7 @@ export class RegisterUserDTO {
 
   @IsString()
   @MinLength(6)
+  @MaxLength(72)
   password!: string;
 
   @IsString()
