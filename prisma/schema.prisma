@@ -55,31 +55,32 @@ model User {
   name String
   status UserStatus
   createdAt DateTime @default(now())
+  hashedRefreshToken String?
   roles Role[]
   activeMode Role
   employeeProfile EmployeeProfile?
   contracts Contract[]
   reviews   Review[]
   burialPlots BurialPlot[]
+
 }
 
 model EmployeeProfile {
   id String @id @default(uuid())
-  specializationId String
   description String
-  regions Regions[]
+  regions Region[]
   status EmployeeStatus
   rating Float
   completedContracts Int
   userId String @unique
   user   User   @relation(fields: [userId], references: [id])
-  specialization   Service @relation(fields: [specializationId], references: [id])
+  specialization   Service[]
   contracts  Contract[]
   proposals  Proposal[]
   reviews    Review[]
 }
 
-model Regions {
+model Region {
   id String @id @default(uuid())
   name String
   employees EmployeeProfile[]
