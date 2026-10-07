@@ -13,6 +13,7 @@ import { Prisma } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomUUID } from 'crypto';
 import { EmployeeProfileDTO } from './dto/EmployeeProfile.dto';
+import { env } from '../config/env';
 
 @Injectable()
 export class AuthService {
@@ -122,11 +123,11 @@ export class AuthService {
   private async issueTokens(userId: string, role: string) {
     const payload = { sub: userId, role };
     const accessToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_ACCESS_SECRET,
+      secret: env.jwtAccessSecret,
       expiresIn: '15m',
     });
     const refreshToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET!,
+      secret: env.jwtRefreshSecret,
       expiresIn: '7d',
     });
 
