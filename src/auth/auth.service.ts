@@ -34,10 +34,14 @@ export class AuthService {
     const hash = await bcrypt.hash(dto.password, 10);
     const userId = randomUUID();
 
-    // якщо employee — заздалегідь перевіряємо валідність specializationIds/regionIds,
-    // щоб не створювати юзера, а потім падати на профілі
     if (dto.role === 'employee') {
-      const { specializationIds, regionIds } = dto.employeeProfile!;
+      if (!dto.employeeProfile) {
+        throw new BadRequestException(
+          "You didn't enter any info for employee profile",
+        );
+      }
+
+      const { specializationIds, regionIds } = dto.employeeProfile;
 
       const services = await this.prisma.service.findMany({
         where: { id: { in: specializationIds } },
@@ -55,10 +59,6 @@ export class AuthService {
         throw new BadRequestException('One or more regionIds are invalid');
       }
     }
-
-    const tokens = this.generateTokens(userId, dto.role);
-    const hashedRt = await bcrypt.hash(tokens.refreshToken, 10);
-
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.user.create({
@@ -70,7 +70,6 @@ export class AuthService {
             roles: [dto.role],
             activeMode: dto.role,
             status: 'active',
-            hashedRefreshToken: hashedRt,
           },
         });
 
@@ -92,8 +91,6 @@ export class AuthService {
           });
         }
       });
-
-      return tokens;
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -103,6 +100,8 @@ export class AuthService {
       }
       throw e;
     }
+
+    return this.issueTokens(userId, dto.role);
   }
 
   async refresh(userId: string, refreshToken: string) {
@@ -214,5 +213,11 @@ export class AuthService {
     });
 
     return this.issueTokens(userId, 'employee');
+  }
+  async logout(userId: string) {
+    await this.prisma.user.updateMany({
+      where: { id: userId },
+      data: { hashedRefreshToken: null },
+    });
   }
 }
