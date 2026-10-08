@@ -11,8 +11,9 @@ import bcrypt from 'bcrypt';
 import { RegisterUserDTO } from './dto/RegisterUser.dto';
 import { Prisma } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { EmployeeProfileDTO } from './dto/EmployeeProfile.dto';
+import { env } from '../config/env';
 
 @Injectable()
 export class AuthService {
@@ -20,9 +21,13 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
   ) {}
+  hashToken = (token: string) => {
+    return createHash('sha256').update(token).digest('hex');
+  };
+
   async login(dto: LoginUserDTO) {
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email: dto.email.trim().toLowerCase() },
     });
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
@@ -31,13 +36,16 @@ export class AuthService {
   }
 
   async register(dto: RegisterUserDTO) {
-    const hash = await bcrypt.hash(dto.password, 10);
     const userId = randomUUID();
 
-    // якщо employee — заздалегідь перевіряємо валідність specializationIds/regionIds,
-    // щоб не створювати юзера, а потім падати на профілі
     if (dto.role === 'employee') {
-      const { specializationIds, regionIds } = dto.employeeProfile!;
+      if (!dto.employeeProfile) {
+        throw new BadRequestException(
+          "You didn't enter any info for employee profile",
+        );
+      }
+
+      const { specializationIds, regionIds } = dto.employeeProfile;
 
       const services = await this.prisma.service.findMany({
         where: { id: { in: specializationIds } },
@@ -56,21 +64,19 @@ export class AuthService {
       }
     }
 
-    const tokens = this.generateTokens(userId, dto.role);
-    const hashedRt = await bcrypt.hash(tokens.refreshToken, 10);
+    const hash = await bcrypt.hash(dto.password, 10);
 
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.user.create({
           data: {
             id: userId,
-            email: dto.email,
+            email: dto.email.trim().toLowerCase(),
             passwordHash: hash,
             name: dto.name,
             roles: [dto.role],
             activeMode: dto.role,
             status: 'active',
-            hashedRefreshToken: hashedRt,
           },
         });
 
@@ -84,7 +90,7 @@ export class AuthService {
               status: 'available',
               rating: 0,
               completedContracts: 0,
-              specializations: {
+              specialization: {
                 connect: specializationIds.map((id) => ({ id })),
               },
               regions: { connect: regionIds.map((id) => ({ id })) },
@@ -92,8 +98,6 @@ export class AuthService {
           });
         }
       });
-
-      return tokens;
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -103,46 +107,36 @@ export class AuthService {
       }
       throw e;
     }
+
+    return this.issueTokens(userId, dto.role);
   }
 
   async refresh(userId: string, refreshToken: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.hashedRefreshToken) throw new ForbiddenException();
+    if (!user?.hashedRefreshToken) throw new UnauthorizedException();
 
-    const matches = await bcrypt.compare(refreshToken, user.hashedRefreshToken);
-    if (!matches) throw new ForbiddenException();
+    const matches = this.hashToken(refreshToken) === user.hashedRefreshToken;
+    if (!matches) throw new UnauthorizedException();
 
     return this.issueTokens(user.id, user.activeMode);
   }
   private async issueTokens(userId: string, role: string) {
     const payload = { sub: userId, role };
     const accessToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_ACCESS_SECRET,
+      secret: env.jwtAccessSecret,
       expiresIn: '15m',
     });
     const refreshToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET,
+      secret: env.jwtRefreshSecret,
       expiresIn: '7d',
     });
 
-    const hashedRt = await bcrypt.hash(refreshToken, 10);
+    const hashedRt = this.hashToken(refreshToken);
     await this.prisma.user.update({
       where: { id: userId },
       data: { hashedRefreshToken: hashedRt },
     });
 
-    return { accessToken, refreshToken };
-  }
-  private generateTokens(userId: string, role: string) {
-    const payload = { sub: userId, role };
-    const accessToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_ACCESS_SECRET,
-      expiresIn: '15m',
-    });
-    const refreshToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET,
-      expiresIn: '7d',
-    });
     return { accessToken, refreshToken };
   }
 
@@ -182,7 +176,7 @@ export class AuthService {
       );
     }
 
-    const regions = await this.prisma.regions.findMany({
+    const regions = await this.prisma.region.findMany({
       where: { id: { in: dto.regionIds } },
     });
     if (regions.length !== dto.regionIds.length) {
@@ -205,7 +199,7 @@ export class AuthService {
           status: 'available',
           rating: 0,
           completedContracts: 0,
-          specializations: {
+          specialization: {
             connect: dto.specializationIds.map((id) => ({ id })),
           },
           regions: { connect: dto.regionIds.map((id) => ({ id })) },
@@ -214,5 +208,11 @@ export class AuthService {
     });
 
     return this.issueTokens(userId, 'employee');
+  }
+  async logout(userId: string) {
+    await this.prisma.user.updateMany({
+      where: { id: userId },
+      data: { hashedRefreshToken: null },
+    });
   }
 }
