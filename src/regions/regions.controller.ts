@@ -9,7 +9,7 @@ export class RegionsController {
   getAll() {
     return this.regionsService.getAll();
   }
-  @Post('')
+  @Post()
   create(@Body() dto: CreateRegionDto) {
     return this.regionsService.create(dto);
   }
