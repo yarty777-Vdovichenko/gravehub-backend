@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { RegionsService } from './regions.service';
-import { createRegionDto } from './dto/createRegionDto';
+import { CreateRegionDto } from './dto/createRegionDto';
 
 @Controller('regions')
 export class RegionsController {
@@ -10,7 +10,7 @@ export class RegionsController {
     return this.regionsService.getAll();
   }
   @Post('')
-  create(@Body() dto: createRegionDto) {
+  create(@Body() dto: CreateRegionDto) {
     return this.regionsService.create(dto);
   }
 }

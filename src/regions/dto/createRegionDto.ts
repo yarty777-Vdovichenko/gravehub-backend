@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
 
-export class createRegionDto {
+export class CreateRegionDto {
   @IsNotEmpty()
   @IsString()
   @ApiProperty()

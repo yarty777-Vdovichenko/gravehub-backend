@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { createRegionDto } from './dto/createRegionDto';
+import { CreateRegionDto } from './dto/createRegionDto';
 
 @Injectable()
 export class RegionsService {
@@ -8,7 +8,7 @@ export class RegionsService {
   getAll() {
     return this.prisma.region.findMany();
   }
-  create(dto: createRegionDto) {
+  create(dto: CreateRegionDto) {
     return this.prisma.region.create({ data: { name: dto.name } });
   }
 }
