@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   IsDate,
-  IsInt,
   IsNotEmpty,
   IsNumber,
   IsPositive,
@@ -29,11 +28,11 @@ export class CreateContractDto {
   @IsUUID()
   regionId!: string;
 
-  @IsInt()
+  @IsNumber()
   @Min(0)
   positionX!: number;
 
-  @IsInt()
+  @IsNumber()
   @Min(0)
   positionY!: number;
 
