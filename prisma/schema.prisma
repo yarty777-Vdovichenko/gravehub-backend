@@ -36,8 +36,10 @@ enum EmployeeStatus {
 }
 
 enum ContractStatus {
-  active
-  finished
+  open
+  in_progress
+  awaiting_confirmation
+  completed
   cancelled
 }
 
@@ -101,7 +103,7 @@ model Contract {
   budget Float
   createdAt DateTime @default(now())
   employeeId String?
-  status ContractStatus
+  status ContractStatus @default(open)
   employee EmployeeProfile? @relation(fields: [employeeId],references: [id])
   customer User @relation(fields: [customerId],references: [id])
   serviceType   Service @relation(fields: [serviceTypeId], references: [id])

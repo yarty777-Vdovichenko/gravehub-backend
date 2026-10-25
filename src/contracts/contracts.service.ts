@@ -27,7 +27,7 @@ export class ContractsService {
     if (!region) throw new BadRequestException('regionId is invalid');
 
     return this.prisma.contract.create({
-      data: { ...dto, status: 'active', customerId: userId },
+      data: { ...dto, customerId: userId },
     });
   }
   getMine(userId: string) {
@@ -43,7 +43,7 @@ export class ContractsService {
   async delete(id: string, userId: string) {
     try {
       await this.prisma.contract.delete({
-        where: { id, customerId: userId, status: 'active', employeeId: null },
+        where: { id, customerId: userId, status: 'open', employeeId: null },
       });
     } catch (e) {
       if (
