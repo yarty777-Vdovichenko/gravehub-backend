@@ -36,8 +36,10 @@ enum EmployeeStatus {
 }
 
 enum ContractStatus {
-  active
-  finished
+  open
+  in_progress
+  awaiting_confirmation
+  completed
   cancelled
 }
 
@@ -84,6 +86,7 @@ model Region {
   id String @id @default(uuid())
   name String
   employees EmployeeProfile[]
+  contracts Contract[]
 }
 
 model Contract {
@@ -92,14 +95,15 @@ model Contract {
   description String
   serviceTypeId String
   customerId String 
-  city String
-  positionX Int
-  positionY Int
+  regionId String
+  region   Region @relation(fields: [regionId], references: [id])
+  positionX Float
+  positionY Float
   date DateTime
   budget Float
   createdAt DateTime @default(now())
   employeeId String?
-  status ContractStatus
+  status ContractStatus @default(open)
   employee EmployeeProfile? @relation(fields: [employeeId],references: [id])
   customer User @relation(fields: [customerId],references: [id])
   serviceType   Service @relation(fields: [serviceTypeId], references: [id])
