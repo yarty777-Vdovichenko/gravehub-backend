@@ -36,6 +36,11 @@ export class ContractsService {
   async getById(id: string, userId: string) {
     const contract = await this.prisma.contract.findFirst({
       where: { id, customerId: userId },
+      include: {
+        review: {
+          select: { id: true, rating: true, text: true, createdAt: true },
+        },
+      },
     });
     if (!contract) throw new NotFoundException('Contract not found');
     return contract;

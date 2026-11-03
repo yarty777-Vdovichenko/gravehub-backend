@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
@@ -39,11 +43,19 @@ export class EmployeeContractsService {
   }
 
   async getOpenContractById(id: string, userId: string) {
+    const profile = await this.prisma.employeeProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!profile) throw new ForbiddenException('Employee profile not found');
+
     const contract = await this.prisma.contract.findFirst({
       where: {
         id,
-        status: 'open',
-        region: { employees: { some: { userId } } },
+        OR: [
+          { status: 'open', region: { employees: { some: { userId } } } },
+          { employeeId: profile.id },
+        ],
       },
       include: {
         region: true,

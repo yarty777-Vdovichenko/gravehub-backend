@@ -21,6 +21,60 @@ export class ProposalsService {
     if (!profile) throw new ForbiddenException('Employee profile not found');
     return profile.id;
   }
+  async accept(contractId: string, proposalId: string, userId: string) {
+    const proposal = await this.prisma.proposal.findFirst({
+      where: { id: proposalId, contractId, contract: { customerId: userId } },
+      select: { id: true, employeeId: true },
+    });
+    if (!proposal) {
+      throw new NotFoundException('Proposal not found');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const c = await tx.contract.updateMany({
+        where: {
+          id: contractId,
+          customerId: userId,
+          status: 'open',
+          employeeId: null,
+        },
+        data: {
+          status: 'in_progress',
+          employeeId: proposal.employeeId,
+        },
+      });
+      if (c.count === 0) {
+        throw new ConflictException('Contract is no longer open');
+      }
+      const p = await tx.proposal.updateMany({
+        where: { id: proposalId, status: 'pending', contractId },
+        data: { status: 'accepted' },
+      });
+      if (p.count === 0) {
+        throw new ConflictException('Proposal is already processed');
+      }
+      await tx.proposal.updateMany({
+        where: { contractId, id: { not: proposalId }, status: 'pending' },
+        data: { status: 'rejected' },
+      });
+      return tx.contract.findUniqueOrThrow({
+        where: { id: contractId },
+        select: { id: true, status: true, employeeId: true },
+      });
+    });
+  }
+  async reject(contractId: string, proposalId: string, userId: string) {
+    const { count } = await this.prisma.proposal.updateMany({
+      where: {
+        id: proposalId,
+        contractId,
+        status: 'pending',
+        contract: { customerId: userId },
+      },
+      data: { status: 'rejected' },
+    });
+    if (count === 0) throw new NotFoundException('Proposal not found');
+    return { id: proposalId, status: 'rejected' };
+  }
   async propose(contractId: string, userId: string, dto: CreateProposalDto) {
     const profile = await this.prisma.employeeProfile.findUnique({
       where: { userId },
@@ -134,7 +188,14 @@ export class ProposalsService {
           comment: true,
           status: true,
           createdAt: true,
-          employee: { select: { id: true } },
+          employee: {
+            select: {
+              id: true,
+              rating: true,
+              reviewsCount: true,
+              completedContracts: true,
+            },
+          },
         },
       }),
       this.prisma.proposal.count({ where }),

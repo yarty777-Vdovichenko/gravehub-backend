@@ -209,6 +209,26 @@ export class AuthService {
 
     return this.issueTokens(userId, 'employee');
   }
+
+  async switchMode(userId: string, mode: 'customer' | 'employee') {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { roles: true },
+    });
+    if (!user) throw new UnauthorizedException();
+
+    if (!user.roles.includes(mode)) {
+      throw new ForbiddenException('You do not have this role');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { activeMode: mode },
+    });
+
+    return this.issueTokens(userId, mode);
+  }
+
   async logout(userId: string) {
     await this.prisma.user.updateMany({
       where: { id: userId },

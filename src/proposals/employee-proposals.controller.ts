@@ -18,10 +18,12 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { ProposalsService } from './proposals.service';
 import { CreateProposalDto } from './dto/create-proposal.dto';
 import { ListProposalsDto } from './dto/list-proposals.dto';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 type AuthReq = Request & { user: { userId: string; role: string } };
 
 @Controller('employee')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('employee')
 export class EmployeeProposalsController {
