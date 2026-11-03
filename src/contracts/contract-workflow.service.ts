@@ -7,6 +7,7 @@ import {
 import { ContractStatus, Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ListMyContractsDto } from './dto/list-my-contracts.dto';
+import { CreateReviewDto } from 'src/reviews/dto/create-review.dto';
 
 const RESULT_SELECT = {
   id: true,
@@ -61,20 +62,92 @@ export class ContractWorkflowService {
     );
   }
 
-  async confirm(id: string, userId: string) {
-    const contract = await this.transition(
-      id,
-      { customerId: userId },
-      ContractStatus.awaiting_confirmation,
-      ContractStatus.completed,
-    );
-    if (contract.employeeId) {
-      await this.prisma.employeeProfile.update({
-        where: { id: contract.employeeId },
-        data: { completedContracts: { increment: 1 } },
+  async confirm(id: string, userId: string, dto: CreateReviewDto) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const contract = await tx.contract.findFirst({
+          where: { id, customerId: userId },
+          select: {
+            id: true,
+            status: true,
+            employeeId: true,
+          },
+        });
+
+        if (!contract) {
+          throw new NotFoundException('Contract not found');
+        }
+
+        if (
+          contract.status !== ContractStatus.awaiting_confirmation ||
+          !contract.employeeId
+        ) {
+          throw new ConflictException('Contract is not awaiting confirmation');
+        }
+
+        const { count } = await tx.contract.updateMany({
+          where: {
+            id,
+            customerId: userId,
+            status: ContractStatus.awaiting_confirmation,
+          },
+          data: {
+            status: ContractStatus.completed,
+          },
+        });
+
+        if (count === 0) {
+          throw new ConflictException('Contract is not awaiting confirmation');
+        }
+
+        const review = await tx.review.create({
+          data: {
+            contractId: id,
+            employeeId: contract.employeeId,
+            customerId: userId,
+            rating: dto.rating,
+            text: dto.text,
+          },
+        });
+
+        await tx.employeeProfile.update({
+          where: { id: contract.employeeId },
+          data: {
+            reviewsCount: { increment: 1 },
+            completedContracts: { increment: 1 },
+          },
+        });
+
+        const { _avg } = await tx.review.aggregate({
+          where: { employeeId: contract.employeeId },
+          _avg: { rating: true },
+        });
+
+        await tx.employeeProfile.update({
+          where: { id: contract.employeeId },
+          data: {
+            rating: Math.round((_avg.rating ?? 0) * 100) / 100,
+          },
+        });
+
+        return {
+          contract: await tx.contract.findUniqueOrThrow({
+            where: { id },
+            select: RESULT_SELECT,
+          }),
+          review,
+        };
       });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException('Review for this contract already exists');
+      }
+
+      throw e;
     }
-    return contract;
   }
 
   rejectCompletion(id: string, userId: string) {
