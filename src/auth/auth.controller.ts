@@ -22,6 +22,7 @@ import type { Request, Response, CookieOptions } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { EmployeeProfileDTO } from './dto/EmployeeProfile.dto';
 import { AccessTokenResponseDTO } from './dto/AccessTokenResponse.dto';
+import { SwitchModeDTO } from './dto/Switchmode.dto';
 
 const REFRESH_COOKIE = 'refreshToken';
 const isProd = process.env.NODE_ENV === 'production';
@@ -97,6 +98,27 @@ export class AuthController {
   ) {
     const { accessToken, refreshToken } =
       await this.authService.addEmployeeRole(req.user.userId, dto);
+    this.setRefreshCookie(res, refreshToken);
+    return { accessToken };
+  }
+
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Перемкнути активний режим (customer / employee)',
+  })
+  @ApiOkResponse({ type: AccessTokenResponseDTO })
+  @UseGuards(JwtAuthGuard)
+  @Post('switch-mode')
+  @HttpCode(200)
+  async switchMode(
+    @Req() req: Request & { user: { userId: string } },
+    @Body() dto: SwitchModeDTO,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken } = await this.authService.switchMode(
+      req.user.userId,
+      dto.mode,
+    );
     this.setRefreshCookie(res, refreshToken);
     return { accessToken };
   }

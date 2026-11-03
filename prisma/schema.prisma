@@ -72,8 +72,9 @@ model EmployeeProfile {
   description String
   regions Region[]
   status EmployeeStatus
-  rating Float
-  completedContracts Int
+  rating Float @default(0)
+  completedContracts Int @default(0)
+  reviewsCount Int @default(0)
   userId String @unique
   user   User   @relation(fields: [userId], references: [id])
   specialization   Service[]
@@ -90,25 +91,29 @@ model Region {
 }
 
 model Contract {
-  id String @id @default(uuid())
-  title String
-  description String
+  id            String         @id @default(uuid())
+  title         String
+  description   String
   serviceTypeId String
-  customerId String 
-  regionId String
-  region   Region @relation(fields: [regionId], references: [id])
-  positionX Float
-  positionY Float
-  date DateTime
-  budget Float
-  createdAt DateTime @default(now())
-  employeeId String?
-  status ContractStatus @default(open)
-  employee EmployeeProfile? @relation(fields: [employeeId],references: [id])
-  customer User @relation(fields: [customerId],references: [id])
-  serviceType   Service @relation(fields: [serviceTypeId], references: [id])
-  proposals  Proposal[]
-  reviews    Review[]
+  customerId    String
+  regionId      String
+  positionX     Float
+  positionY     Float
+  date          DateTime
+  budget        Float
+  createdAt     DateTime       @default(now())
+  employeeId    String?
+  status        ContractStatus @default(open)
+  region        Region           @relation(fields: [regionId], references: [id])
+  employee      EmployeeProfile? @relation(fields: [employeeId], references: [id])
+  customer      User             @relation(fields: [customerId], references: [id])
+  serviceType   Service          @relation(fields: [serviceTypeId], references: [id])
+  proposals     Proposal[]
+  review        Review?
+
+  @@index([customerId])
+  @@index([employeeId, status])
+  @@index([regionId, status, createdAt])
 }
 
 model Service {
@@ -121,15 +126,19 @@ model Service {
 }
 
 model Proposal {
-  id String @id @default(uuid())
+  id         String           @id @default(uuid())
   contractId String
   employeeId String
-  price Float
-  comment String
-  status ProposalStatus
-  createdAt DateTime @default(now())
-  contract Contract @relation(fields: [contractId],references: [id])
-  employee EmployeeProfile @relation(fields: [employeeId],references: [id])
+  price      Int
+  comment    String
+  status     ProposalStatus   @default(pending)
+  createdAt  DateTime         @default(now())
+  contract   Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  employee   EmployeeProfile  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, employeeId])
+  @@index([employeeId])
+  @@index([contractId, status])
 }
 
 model Cemetry {
@@ -151,14 +160,16 @@ model BurialPlot {
 }
 
 model Review {
-  id String @id @default(uuid())
-  contractId String
+  id         String   @id @default(uuid())
+  contractId String   @unique
   employeeId String
   customerId String
-  rating Int
-  text String
-  createdAt DateTime @default(now())
-  contract Contract @relation(fields: [contractId],references: [id])
-  employee EmployeeProfile @relation(fields: [employeeId],references: [id])
-  customer User @relation(fields: [customerId],references: [id])
+  rating     Int
+  text       String
+  createdAt  DateTime @default(now())
+  contract   Contract        @relation(fields: [contractId], references: [id])
+  employee   EmployeeProfile @relation(fields: [employeeId], references: [id])
+  customer   User            @relation(fields: [customerId], references: [id])
+
+  @@index([employeeId, createdAt])
 }
