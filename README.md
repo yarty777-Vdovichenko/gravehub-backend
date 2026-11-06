@@ -1,98 +1,95 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# GraveHub Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API for GraveHub, a marketplace for funeral and cemetery services. Customers publish contracts (service requests), employees (service providers) respond with proposals, the customer picks one, and after the work is done the customer confirms it and leaves a review that feeds the provider's rating.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+University coursework project. This repository contains the backend only; the React frontend is developed separately by a teammate.
 
-## Description
+## Tech Stack
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- NestJS, TypeScript
+- PostgreSQL with Prisma ORM (Prisma 6, migrations and seed)
+- JWT authentication: short-lived access token plus rotating refresh token in an httpOnly cookie
+- Swagger (OpenAPI) documentation
+- Docker Compose for the local database
 
-## Project setup
+## Features
+
+- Registration and login with two roles, `customer` and `employee`. One account can hold both roles and switch between them (`activeMode`), and the active mode is stored on the backend.
+- Refresh token rotation: every refresh issues a new pair and invalidates the old one. One active session per user.
+- Role-based access: customer endpoints and employee endpoints are separated by the active mode and return 403 otherwise.
+- Public reference data: services and regions, seeded with fixed UUIDs (idempotent seed).
+- Customer contracts: create, list own, view one, delete (only while `open` and without an assigned employee).
+- Employee feed: open contracts in the employee's regions with pagination, plus contract details.
+- Proposals: an employee submits one proposal per contract, can cancel it while it is `pending`, and customers list proposals for their contract with the employee's rating, review count and completed contracts.
+- Accepting a proposal is a single operation: the contract moves to `in_progress` with the executor assigned, the chosen proposal becomes `accepted`, all other pending proposals become `rejected`.
+- Contract lifecycle: `open` -> `in_progress` -> `awaiting_confirmation` -> `completed`, with the option for the customer to send the work back (`awaiting_confirmation` -> `in_progress`). Invalid transitions return 409.
+- Reviews and rating: confirming a contract creates a review (rating 1-5, text up to 1000 characters) in the same step. Employee rating, reviews count and completed contracts are derived from reviews. Reviews of an employee are available with pagination.
+- Unified error format `{ statusCode, message, error }`, strict DTO validation (unknown fields are rejected with 400), UUID validation in paths.
+
+## Contract Statuses
+
+| Status | Meaning |
+| --- | --- |
+| `open` | Created, accepting proposals |
+| `in_progress` | Executor assigned |
+| `awaiting_confirmation` | Executor marked the work as done |
+| `completed` | Confirmed by the customer, review created |
+| `cancelled` | Cancelled |
+
+## API Overview
+
+Full request and response schemas are available in Swagger at `http://localhost:3000/docs` after the server starts.
+
+| Area | Endpoints |
+| --- | --- |
+| Auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/roles/customer`, `/auth/roles/employee`, `/auth/switch-mode` |
+| Reference data | `GET /services`, `GET /regions` |
+| Customer contracts | `POST /contracts`, `GET /contracts/my`, `GET /contracts/:id`, `DELETE /contracts/:id` |
+| Customer proposals | `GET /contracts/:id/proposals`, `POST /contracts/:contractId/proposals/:id/accept`, `POST /contracts/:contractId/proposals/:id/reject` |
+| Customer completion | `POST /customer/contracts/:id/confirm`, `POST /customer/contracts/:id/reject-completion` |
+| Employee contracts | `GET /employee/contracts`, `GET /employee/contracts/:id`, `GET /employee/my-contracts`, `POST /employee/my-contracts/:id/complete` |
+| Employee proposals | `POST /employee/contracts/:contractId/proposals`, `GET /employee/proposals`, `DELETE /employee/proposals/:id` |
+| Reviews | `GET /employees/:id/reviews` |
+
+List endpoints use `page` and `limit` query parameters (limit 1-50, default 10) and respond with `{ items, total, page, limit, totalPages }`.
+
+## Authentication Notes
+
+- The access token lives 15 minutes and is sent as `Authorization: Bearer <token>`. The client should keep it in memory, not in localStorage.
+- The refresh token is an httpOnly cookie sent only to `/auth/*` paths. Requests from the browser must include credentials (`withCredentials: true` for axios, `credentials: 'include'` for fetch).
+- On a 401 the client calls `POST /auth/refresh` once and retries the original request. On app start the client calls refresh to restore the session.
+- CORS allows only the origin from `FRONTEND_URL` (default `http://localhost:5173`).
+
+## Getting Started
+
+Requirements: Node.js and Docker Desktop.
 
 ```bash
-$ npm install
+cp .env.example .env
+docker compose up -d
+npm install
+npx prisma migrate deploy
+npx prisma db seed
+npm run start:dev
 ```
 
-## Compile and run the project
+The API is available at `http://localhost:3000`, Swagger at `http://localhost:3000/docs`. The seed fills services and regions and is safe to run repeatedly. After each `git pull`, run `npm install` and `npx prisma migrate deploy` again.
 
-```bash
-# development
-$ npm run start
+## Project Structure
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+```
+prisma/    schema, migrations, seed
+src/       NestJS modules
 ```
 
-## Run tests
+## Roadmap
 
-```bash
-# unit tests
-$ npm run test
+- Burial plot purchase with an interactive cemetery map and protection against simultaneous reservation
+- Mock payment
+- Real-time chat over WebSocket
+- Email verification and password reset
+- Admin panel
 
-# e2e tests
-$ npm run test:e2e
+## Related
 
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Frontend: developed in a separate repository by a teammate.
