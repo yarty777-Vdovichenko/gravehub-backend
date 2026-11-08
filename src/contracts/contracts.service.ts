@@ -6,6 +6,8 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateContractDto } from './dto/CreateContract.dto';
 import { Prisma } from '@prisma/client';
+import { ContractsQueryDto } from './dto/contracts-query.dto';
+import { buildContractWhere } from './contracts-query.util';
 
 @Injectable()
 export class ContractsService {
@@ -30,8 +32,30 @@ export class ContractsService {
       data: { ...dto, customerId: userId },
     });
   }
-  getMine(userId: string) {
-    return this.prisma.contract.findMany({ where: { customerId: userId } });
+  async getMine(userId: string, query: ContractsQueryDto) {
+    const where: Prisma.ContractWhereInput = {
+      AND: [{ customerId: userId }, buildContractWhere(query)],
+    };
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.contract.findMany({
+        where,
+        orderBy: { [query.sortBy]: query.order },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.contract.count({ where }),
+    ]);
+
+    return {
+      items,
+      meta: {
+        total,
+        page: query.page,
+        limit: query.limit,
+        pages: Math.ceil(total / query.limit),
+      },
+    };
   }
   async getById(id: string, userId: string) {
     const contract = await this.prisma.contract.findFirst({

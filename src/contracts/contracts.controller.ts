@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -17,6 +18,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { CreateContractDto } from './dto/CreateContract.dto';
+import { ContractsQueryDto } from './dto/contracts-query.dto';
 
 type AuthRequest = Request & { user: { userId: string; role: string } };
 
@@ -34,8 +36,8 @@ export class ContractsController {
   }
 
   @Get('my')
-  getMine(@Req() req: AuthRequest) {
-    return this.contractsService.getMine(req.user.userId);
+  getMine(@Query() query: ContractsQueryDto, @Req() req: AuthRequest) {
+    return this.contractsService.getMine(req.user.userId, query);
   }
 
   @Get(':id')

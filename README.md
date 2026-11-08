@@ -19,7 +19,8 @@ University coursework project. This repository contains the backend only; the Re
 - Role-based access: customer endpoints and employee endpoints are separated by the active mode and return 403 otherwise.
 - Public reference data: services and regions, seeded with fixed UUIDs (idempotent seed).
 - Customer contracts: create, list own, view one, delete (only while `open` and without an assigned employee).
-- Employee feed: open contracts in the employee's regions with pagination, plus contract details.
+- Employee feed: search and filter open contracts in the employee's regions, plus contract details.
+- Employee search: search and filter providers by name, region, service and rating.
 - Proposals: an employee submits one proposal per contract, can cancel it while it is `pending`, and customers list proposals for their contract with the employee's rating, review count and completed contracts.
 - Accepting a proposal is a single operation: the contract moves to `in_progress` with the executor assigned, the chosen proposal becomes `accepted`, all other pending proposals become `rejected`.
 - Contract lifecycle: `open` -> `in_progress` -> `awaiting_confirmation` -> `completed`, with the option for the customer to send the work back (`awaiting_confirmation` -> `in_progress`). Invalid transitions return 409.
@@ -44,12 +45,12 @@ Full request and response schemas are available in Swagger at `http://localhost:
 | --- | --- |
 | Auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/roles/customer`, `/auth/roles/employee`, `/auth/switch-mode` |
 | Reference data | `GET /services`, `GET /regions` |
-| Customer contracts | `POST /contracts`, `GET /contracts/my`, `GET /contracts/:id`, `DELETE /contracts/:id` |
+| Customer contracts | `POST /contracts`, `GET /contracts/my` (search and filters), `GET /contracts/:id`, `DELETE /contracts/:id` |
 | Customer proposals | `GET /contracts/:id/proposals`, `POST /contracts/:contractId/proposals/:id/accept`, `POST /contracts/:contractId/proposals/:id/reject` |
 | Customer completion | `POST /customer/contracts/:id/confirm`, `POST /customer/contracts/:id/reject-completion` |
-| Employee contracts | `GET /employee/contracts`, `GET /employee/contracts/:id`, `GET /employee/my-contracts`, `POST /employee/my-contracts/:id/complete` |
+| Employee contracts | `GET /employee/contracts` (search and filters), `GET /employee/contracts/:id`, `GET /employee/my-contracts`, `POST /employee/my-contracts/:id/complete` |
 | Employee proposals | `POST /employee/contracts/:contractId/proposals`, `GET /employee/proposals`, `DELETE /employee/proposals/:id` |
-| Reviews | `GET /employees/:id/reviews` |
+| Employees and reviews | `GET /employees` (search and filters), `GET /employees/:id/reviews` |
 
 List endpoints use `page` and `limit` query parameters (limit 1-50, default 10) and respond with `{ items, total, page, limit, totalPages }`.
 
