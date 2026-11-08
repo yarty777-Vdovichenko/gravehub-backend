@@ -107,6 +107,23 @@ const regions = [
   },
 ];
 
+const cemeteries = [
+  {
+    id: '00000000-0000-0000-0000-00000000c001',
+    name: 'Центральне кладовище',
+    city: 'Хмельницький',
+    latitude: 49.4229,
+    longitude: 26.9871,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c002',
+    name: 'Лісове кладовище',
+    city: 'Хмельницький',
+    latitude: 49.4501,
+    longitude: 27.0212,
+  },
+];
+
 async function main() {
   console.log('Заповнення послуг...');
   for (const s of services) {
@@ -115,6 +132,32 @@ async function main() {
       update: {},
       create: s,
     });
+  }
+
+  for (const c of cemeteries) {
+    await prisma.cemetery.upsert({ where: { id: c.id }, update: c, create: c });
+
+    const COLS = 10;
+    const ROWS = 8;
+    for (let x = 0; x < COLS; x++) {
+      for (let y = 0; y < ROWS; y++) {
+        const distance = x + y;
+        const base = 30000 - distance * 1200;
+        const price = Math.round((base + Math.random() * 2000) / 100) * 100;
+
+        await prisma.burialPlot.upsert({
+          where: {
+            cemeteryId_positionX_positionY: {
+              cemeteryId: c.id,
+              positionX: x,
+              positionY: y,
+            },
+          },
+          update: {},
+          create: { cemeteryId: c.id, positionX: x, positionY: y, price },
+        });
+      }
+    }
   }
 
   console.log('Заповнення регіонів...');

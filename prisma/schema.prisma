@@ -13,12 +13,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum BurialStatus {
-  available
-  reserved
-  sold
-}
-
 enum UserStatus {
   active
   blocked
@@ -63,8 +57,9 @@ model User {
   employeeProfile EmployeeProfile?
   contracts Contract[]
   reviews   Review[]
-  burialPlots BurialPlot[]
-
+  reservedPlots BurialPlot[]  @relation("PlotReservedBy")
+  ownedPlots    BurialPlot[]  @relation("PlotOwner")
+  plotPurchases PlotPurchase[]
 }
 
 model EmployeeProfile {
@@ -141,22 +136,51 @@ model Proposal {
   @@index([contractId, status])
 }
 
-model Cemetry {
-  id    String       @id @default(uuid())
-  name  String
-  city  String
-  plots BurialPlot[]
+enum PlotStatus {
+  available
+  reserved
+  sold
+}
+
+model Cemetery {
+  id        String       @id @default(uuid())
+  name      String
+  city      String
+  latitude  Float
+  longitude Float
+  plots     BurialPlot[]
 }
 
 model BurialPlot {
-  id String @id @default(uuid())
-  positionX Int
-  positionY Int
-  status BurialStatus
-  ownerId String?
-  cemeteryId String
-  user User? @relation(fields: [ownerId],references: [id])
-  cemetry Cemetry @relation(fields: [cemeteryId],references: [id])
+  id           String     @id @default(uuid())
+  cemeteryId   String
+  positionX    Int
+  positionY    Int
+  price        Int
+  status       PlotStatus @default(available)
+  reservedById String?
+  reservedUntil DateTime?
+  ownerId      String?
+  cemetery     Cemetery   @relation(fields: [cemeteryId], references: [id])
+  reservedBy   User?      @relation("PlotReservedBy", fields: [reservedById], references: [id])
+  owner        User?      @relation("PlotOwner", fields: [ownerId], references: [id])
+  purchase     PlotPurchase?
+
+  @@unique([cemeteryId, positionX, positionY])
+}
+
+model PlotPurchase {
+  id             String   @id @default(uuid())
+  plotId         String   @unique
+  userId         String
+  price          Int
+  paymentType    String
+  creditMonths   Int?
+  downPayment    Int?
+  monthlyPayment Int?
+  createdAt      DateTime @default(now())
+  plot           BurialPlot @relation(fields: [plotId], references: [id])
+  user           User       @relation(fields: [userId], references: [id])
 }
 
 model Review {
