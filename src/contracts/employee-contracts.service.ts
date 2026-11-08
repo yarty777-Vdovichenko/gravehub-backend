@@ -3,42 +3,52 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { ContractsQueryDto } from './dto/contracts-query.dto';
+import { buildContractWhere } from './contracts-query.util';
 
 @Injectable()
 export class EmployeeContractsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getOpenContractsPaginated(page: number, limit: number, userId: string) {
+  async getOpenContractsPaginated(query: ContractsQueryDto, userId: string) {
+    const profile = await this.prisma.employeeProfile.findUnique({
+      where: { userId },
+      select: { regions: { select: { id: true } } },
+    });
+    const regionIds = profile?.regions.map((region) => region.id) ?? [];
+    const where: Prisma.ContractWhereInput = {
+      AND: [
+        buildContractWhere(query),
+        { status: 'open' },
+        { regionId: { in: regionIds } },
+      ],
+    };
+
     const [items, total] = await this.prisma.$transaction([
       this.prisma.contract.findMany({
-        where: {
-          status: 'open',
-          region: { employees: { some: { userId } } },
-        },
+        where,
         include: {
           region: true,
           serviceType: true,
           customer: { select: { id: true, name: true } },
         },
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+        orderBy: { [query.sortBy]: query.order },
       }),
-      this.prisma.contract.count({
-        where: {
-          status: 'open',
-          region: { employees: { some: { userId } } },
-        },
-      }),
+      this.prisma.contract.count({ where }),
     ]);
 
     return {
       items,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      meta: {
+        total,
+        page: query.page,
+        limit: query.limit,
+        pages: Math.ceil(total / query.limit),
+      },
     };
   }
 

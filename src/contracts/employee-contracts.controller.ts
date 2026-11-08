@@ -12,7 +12,7 @@ import type { Request } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
-import { PaginationQueryDto } from './dto/PaginationQuery.dto';
+import { ContractsQueryDto } from './dto/contracts-query.dto';
 import { EmployeeContractsService } from './employee-contracts.service';
 
 type AuthRequest = Request & { user: { userId: string; role: string } };
@@ -28,10 +28,9 @@ export class EmployeeContractsController {
   ) {}
 
   @Get()
-  getContracts(@Query() query: PaginationQueryDto, @Req() req: AuthRequest) {
+  getContracts(@Query() query: ContractsQueryDto, @Req() req: AuthRequest) {
     return this.employeeContractsService.getOpenContractsPaginated(
-      query.page,
-      query.limit,
+      query,
       req.user.userId,
     );
   }

@@ -6,6 +6,7 @@ import { RegionsModule } from './regions/regions.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { ProposalsModule } from './proposals/proposals.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { EmployeesModule } from './employees/employees.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ReviewsModule } from './reviews/reviews.module';
     ContractsModule,
     ProposalsModule,
     ReviewsModule,
+    EmployeesModule,
   ],
   controllers: [],
   providers: [],
