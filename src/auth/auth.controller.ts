@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   Post,
   Req,
@@ -22,6 +23,7 @@ import type { Request, Response, CookieOptions } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { EmployeeProfileDTO } from './dto/EmployeeProfile.dto';
 import { AccessTokenResponseDTO } from './dto/AccessTokenResponse.dto';
+import { CurrentUserResponseDTO } from './dto/CurrentUserResponse.dto';
 import { SwitchModeDTO } from './dto/Switchmode.dto';
 import {
   ForgotPasswordDTO,
@@ -65,6 +67,15 @@ export class AuthController {
     this.setRefreshCookie(res, refreshToken);
 
     return { accessToken };
+  }
+
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Отримати поточного користувача та його ролі' })
+  @ApiOkResponse({ type: CurrentUserResponseDTO })
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  getCurrentUser(@Req() req: Request & { user: { userId: string } }) {
+    return this.authService.getCurrentUser(req.user.userId);
   }
 
   @ApiOperation({ summary: 'Реєстрація користувача' })

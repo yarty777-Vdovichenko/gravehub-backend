@@ -157,6 +157,31 @@ export class AuthService {
     return this.issueTokens(user.id, user.activeMode);
   }
 
+  async getCurrentUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        roles: true,
+        activeMode: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      roles: user.roles,
+      mode: user.activeMode,
+    };
+  }
+
   private async issueTokens(userId: string, role: string) {
     const payload = { sub: userId, role };
 
