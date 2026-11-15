@@ -1,3 +1,4 @@
+
 import {
   BadRequestException,
   ConflictException,
@@ -25,6 +26,7 @@ export class AuthService {
     private readonly tokens: AccountTokensService,
     private readonly mail: MailService,
   ) {}
+
   hashToken = (token: string) => {
     return createHash('sha256').update(token).digest('hex');
   };
@@ -33,9 +35,17 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.trim().toLowerCase() },
     });
+
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    if (!user.emailVerified) {
+      throw new ForbiddenException(
+        'Підтвердіть електронну пошту перед входом до системи',
+      );
+    }
+
     return this.issueTokens(user.id, user.activeMode);
   }
 
@@ -54,6 +64,7 @@ export class AuthService {
       const services = await this.prisma.service.findMany({
         where: { id: { in: specializationIds } },
       });
+
       if (services.length !== specializationIds.length) {
         throw new BadRequestException(
           'One or more specializationIds are invalid',
@@ -63,6 +74,7 @@ export class AuthService {
       const regions = await this.prisma.region.findMany({
         where: { id: { in: regionIds } },
       });
+
       if (regions.length !== regionIds.length) {
         throw new BadRequestException('One or more regionIds are invalid');
       }
@@ -87,6 +99,7 @@ export class AuthService {
         if (dto.role === 'employee') {
           const { specializationIds, regionIds, description } =
             dto.employeeProfile!;
+
           await tx.employeeProfile.create({
             data: {
               userId,
@@ -97,7 +110,9 @@ export class AuthService {
               specialization: {
                 connect: specializationIds.map((id) => ({ id })),
               },
-              regions: { connect: regionIds.map((id) => ({ id })) },
+              regions: {
+                connect: regionIds.map((id) => ({ id })),
+              },
             },
           });
         }
@@ -109,33 +124,54 @@ export class AuthService {
       ) {
         throw new ConflictException('User with this email already exists');
       }
+
       throw e;
     }
-    void this.sendVerification(userId);
-    return this.issueTokens(userId, dto.role);
+
+    // Реєстрація не створює авторизовану сесію:
+    // спочатку потрібно підтвердити пошту.
+    // Якщо відправлення листа не вдалося, його можна надіслати повторно.
+    void this.sendVerification(userId).catch(() => undefined);
+
+    return {
+      message: 'Акаунт створено. Підтвердіть електронну пошту, щоб увійти.',
+    };
   }
 
   async refresh(userId: string, refreshToken: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.hashedRefreshToken) throw new UnauthorizedException();
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
 
-    const matches = this.hashToken(refreshToken) === user.hashedRefreshToken;
-    if (!matches) throw new UnauthorizedException();
+    if (!user?.emailVerified || !user.hashedRefreshToken) {
+      throw new UnauthorizedException();
+    }
+
+    const matches =
+      this.hashToken(refreshToken) === user.hashedRefreshToken;
+
+    if (!matches) {
+      throw new UnauthorizedException();
+    }
 
     return this.issueTokens(user.id, user.activeMode);
   }
+
   private async issueTokens(userId: string, role: string) {
     const payload = { sub: userId, role };
+
     const accessToken = this.jwt.sign(payload, {
       secret: env.jwtAccessSecret,
       expiresIn: '15m',
     });
+
     const refreshToken = this.jwt.sign(payload, {
       secret: env.jwtRefreshSecret,
       expiresIn: '7d',
     });
 
     const hashedRt = this.hashToken(refreshToken);
+
     await this.prisma.user.update({
       where: { id: userId },
       data: { hashedRefreshToken: hashedRt },
@@ -145,8 +181,13 @@ export class AuthService {
   }
 
   async addCustomerRole(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new ForbiddenException();
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new ForbiddenException();
+    }
 
     if (user.roles.includes('customer')) {
       throw new BadRequestException('You already have the customer role');
@@ -164,8 +205,13 @@ export class AuthService {
   }
 
   async addEmployeeRole(userId: string, dto: EmployeeProfileDTO) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new ForbiddenException();
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new ForbiddenException();
+    }
 
     if (user.roles.includes('employee')) {
       throw new BadRequestException('You already have the employee role');
@@ -174,6 +220,7 @@ export class AuthService {
     const services = await this.prisma.service.findMany({
       where: { id: { in: dto.specializationIds } },
     });
+
     if (services.length !== dto.specializationIds.length) {
       throw new BadRequestException(
         'One or more specializationIds are invalid',
@@ -183,6 +230,7 @@ export class AuthService {
     const regions = await this.prisma.region.findMany({
       where: { id: { in: dto.regionIds } },
     });
+
     if (regions.length !== dto.regionIds.length) {
       throw new BadRequestException('One or more regionIds are invalid');
     }
@@ -206,7 +254,9 @@ export class AuthService {
           specialization: {
             connect: dto.specializationIds.map((id) => ({ id })),
           },
-          regions: { connect: dto.regionIds.map((id) => ({ id })) },
+          regions: {
+            connect: dto.regionIds.map((id) => ({ id })),
+          },
         },
       });
     });
@@ -219,7 +269,10 @@ export class AuthService {
       where: { id: userId },
       select: { roles: true },
     });
-    if (!user) throw new UnauthorizedException();
+
+    if (!user) {
+      throw new UnauthorizedException();
+    }
 
     if (!user.roles.includes(mode)) {
       throw new ForbiddenException('You do not have this role');
@@ -239,23 +292,47 @@ export class AuthService {
       data: { hashedRefreshToken: null },
     });
   }
+
+  async findUserIdByEmail(email: string): Promise<string | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+      select: { id: true },
+    });
+
+    return user?.id ?? null;
+  }
+
   async sendVerification(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || user.emailVerified) return;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || user.emailVerified) {
+      return;
+    }
+
     const token = await this.tokens.create(
       userId,
       'email_verification',
       24 * 60,
     );
+
     await this.mail.sendVerification(user.email, token);
   }
 
   async verifyEmail(token: string) {
     const userId = await this.tokens.consume(token, 'email_verification');
+
     await this.prisma.user.update({
       where: { id: userId },
-      data: { emailVerified: true },
+      data: {
+        emailVerified: true,
+        // Відкликаємо будь-яку refresh-сесію,
+        // створену до підтвердження пошти.
+        hashedRefreshToken: null,
+      },
     });
+
     return { message: 'Пошту підтверджено' };
   }
 
@@ -263,20 +340,29 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
     });
+
     if (user) {
       const token = await this.tokens.create(user.id, 'password_reset', 60);
       void this.mail.sendPasswordReset(user.email, token);
     }
-    return { message: 'Якщо така пошта зареєстрована, ми надіслали лист' };
+
+    return {
+      message: 'Якщо така пошта зареєстрована, ми надіслали лист',
+    };
   }
 
   async resetPassword(token: string, newPassword: string) {
     const userId = await this.tokens.consume(token, 'password_reset');
     const passwordHash = await bcrypt.hash(newPassword, 10);
+
     await this.prisma.user.update({
       where: { id: userId },
-      data: { passwordHash, hashedRefreshToken: null },
+      data: {
+        passwordHash,
+        hashedRefreshToken: null,
+      },
     });
+
     return { message: 'Пароль змінено' };
   }
 }

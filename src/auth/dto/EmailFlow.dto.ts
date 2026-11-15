@@ -23,3 +23,8 @@ export class ResetPasswordDTO {
   @MaxLength(72)
   newPassword!: string;
 }
+
+export class ResendVerificationDTO {
+  @IsEmail()
+  email!: string;
+}

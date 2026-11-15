@@ -25,6 +25,7 @@ import { AccessTokenResponseDTO } from './dto/AccessTokenResponse.dto';
 import { SwitchModeDTO } from './dto/Switchmode.dto';
 import {
   ForgotPasswordDTO,
+  ResendVerificationDTO,
   ResetPasswordDTO,
   VerifyEmailDTO,
 } from './dto/EmailFlow.dto';
@@ -60,20 +61,16 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const { accessToken, refreshToken } = await this.authService.login(dto);
+
     this.setRefreshCookie(res, refreshToken);
+
     return { accessToken };
   }
 
   @ApiOperation({ summary: 'Реєстрація користувача' })
-  @ApiOkResponse({ type: AccessTokenResponseDTO })
   @Post('register')
-  async register(
-    @Body() dto: RegisterUserDTO,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const { accessToken, refreshToken } = await this.authService.register(dto);
-    this.setRefreshCookie(res, refreshToken);
-    return { accessToken };
+  register(@Body() dto: RegisterUserDTO) {
+    return this.authService.register(dto);
   }
 
   @ApiBearerAuth()
@@ -87,7 +84,9 @@ export class AuthController {
   ) {
     const { accessToken, refreshToken } =
       await this.authService.addCustomerRole(req.user.userId);
+
     this.setRefreshCookie(res, refreshToken);
+
     return { accessToken };
   }
 
@@ -103,7 +102,9 @@ export class AuthController {
   ) {
     const { accessToken, refreshToken } =
       await this.authService.addEmployeeRole(req.user.userId, dto);
+
     this.setRefreshCookie(res, refreshToken);
+
     return { accessToken };
   }
 
@@ -124,7 +125,9 @@ export class AuthController {
       req.user.userId,
       dto.mode,
     );
+
     this.setRefreshCookie(res, refreshToken);
+
     return { accessToken };
   }
 
@@ -148,7 +151,9 @@ export class AuthController {
       req.user.userId,
       req.user.refreshToken,
     );
+
     this.setRefreshCookie(res, refreshToken);
+
     return { accessToken };
   }
 
@@ -162,9 +167,12 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.authService.logout(req.user.userId);
+
     res.clearCookie(REFRESH_COOKIE, refreshCookieOptions);
+
     return { message: 'Logged out' };
   }
+
   @ApiOperation({ summary: 'Підтвердити пошту за токеном з листа' })
   @Post('verify-email')
   @HttpCode(200)
@@ -172,14 +180,20 @@ export class AuthController {
     return this.authService.verifyEmail(dto.token);
   }
 
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Надіслати лист підтвердження повторно' })
-  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Повторно надіслати лист підтвердження пошти' })
   @Post('resend-verification')
   @HttpCode(200)
-  async resendVerification(@Req() req: Request & { user: { userId: string } }) {
-    await this.authService.sendVerification(req.user.userId);
-    return { message: 'Якщо пошту ще не підтверджено, лист надіслано' };
+  async resendVerification(@Body() dto: ResendVerificationDTO) {
+    const user = await this.authService.findUserIdByEmail(dto.email);
+
+    if (user) {
+      try {
+        await this.authService.sendVerification(user);
+      } catch {}
+    }
+    return {
+      message: 'Якщо акаунт існує і пошта не підтверджена, лист буде надіслано',
+    };
   }
 
   @ApiOperation({ summary: 'Запросити відновлення пароля' })
