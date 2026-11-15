@@ -14,12 +14,16 @@ import { JwtService } from '@nestjs/jwt';
 import { createHash, randomUUID } from 'crypto';
 import { EmployeeProfileDTO } from './dto/EmployeeProfile.dto';
 import { env } from '../config/env';
+import { MailService } from '../mail/mail.service';
+import { AccountTokensService } from './account-tokens.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly tokens: AccountTokensService,
+    private readonly mail: MailService,
   ) {}
   hashToken = (token: string) => {
     return createHash('sha256').update(token).digest('hex');
@@ -107,7 +111,7 @@ export class AuthService {
       }
       throw e;
     }
-
+    void this.sendVerification(userId);
     return this.issueTokens(userId, dto.role);
   }
 
@@ -234,5 +238,45 @@ export class AuthService {
       where: { id: userId },
       data: { hashedRefreshToken: null },
     });
+  }
+  async sendVerification(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.emailVerified) return;
+    const token = await this.tokens.create(
+      userId,
+      'email_verification',
+      24 * 60,
+    );
+    await this.mail.sendVerification(user.email, token);
+  }
+
+  async verifyEmail(token: string) {
+    const userId = await this.tokens.consume(token, 'email_verification');
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { emailVerified: true },
+    });
+    return { message: 'Пошту підтверджено' };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+    });
+    if (user) {
+      const token = await this.tokens.create(user.id, 'password_reset', 60);
+      void this.mail.sendPasswordReset(user.email, token);
+    }
+    return { message: 'Якщо така пошта зареєстрована, ми надіслали лист' };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const userId = await this.tokens.consume(token, 'password_reset');
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash, hashedRefreshToken: null },
+    });
+    return { message: 'Пароль змінено' };
   }
 }

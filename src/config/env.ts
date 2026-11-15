@@ -11,4 +11,9 @@ export const env = {
   jwtRefreshSecret: required('JWT_REFRESH_SECRET'),
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
   port: Number(process.env.PORT ?? 3000),
+  SMTP_HOST: process.env.SMTP_HOST,
+  SMTP_PORT: process.env.SMTP_PORT,
+  SMTP_USER: process.env.SMTP_USER,
+  SMTP_PASS: process.env.SMTP_PASS,
+  MAIL_FROM: process.env.MAIL_FROM,
 };

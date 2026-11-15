@@ -55,11 +55,13 @@ model User {
   roles Role[]
   activeMode Role
   employeeProfile EmployeeProfile?
+  emailVerified Boolean @default(false)
   contracts Contract[]
   reviews   Review[]
   reservedPlots BurialPlot[]  @relation("PlotReservedBy")
   ownedPlots    BurialPlot[]  @relation("PlotOwner")
   plotPurchases PlotPurchase[]
+  tokens UserToken[]
 }
 
 model EmployeeProfile {
@@ -196,4 +198,22 @@ model Review {
   customer   User            @relation(fields: [customerId], references: [id])
 
   @@index([employeeId, createdAt])
+}
+
+enum TokenType {
+  email_verification
+  password_reset
+}
+
+model UserToken {
+  id        String    @id @default(uuid())
+  userId    String
+  type      TokenType
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
 }

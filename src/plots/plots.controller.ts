@@ -7,14 +7,21 @@ import {
   Post,
   Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { CreditPreviewDto, PurchasePlotDto } from './dto/purchase-plot.dto';
 import { PlotsService } from './plots.service';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 type AuthReq = Request & { user: { userId: string; role: string } };
 
+@ApiTags('plots')
 @Controller()
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('customer')
 export class PlotsController {
   constructor(private readonly plotsService: PlotsService) {}

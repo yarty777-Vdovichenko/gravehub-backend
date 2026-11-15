@@ -23,6 +23,11 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { EmployeeProfileDTO } from './dto/EmployeeProfile.dto';
 import { AccessTokenResponseDTO } from './dto/AccessTokenResponse.dto';
 import { SwitchModeDTO } from './dto/Switchmode.dto';
+import {
+  ForgotPasswordDTO,
+  ResetPasswordDTO,
+  VerifyEmailDTO,
+} from './dto/EmailFlow.dto';
 
 const REFRESH_COOKIE = 'refreshToken';
 const isProd = process.env.NODE_ENV === 'production';
@@ -159,5 +164,35 @@ export class AuthController {
     await this.authService.logout(req.user.userId);
     res.clearCookie(REFRESH_COOKIE, refreshCookieOptions);
     return { message: 'Logged out' };
+  }
+  @ApiOperation({ summary: 'Підтвердити пошту за токеном з листа' })
+  @Post('verify-email')
+  @HttpCode(200)
+  verifyEmail(@Body() dto: VerifyEmailDTO) {
+    return this.authService.verifyEmail(dto.token);
+  }
+
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Надіслати лист підтвердження повторно' })
+  @UseGuards(JwtAuthGuard)
+  @Post('resend-verification')
+  @HttpCode(200)
+  async resendVerification(@Req() req: Request & { user: { userId: string } }) {
+    await this.authService.sendVerification(req.user.userId);
+    return { message: 'Якщо пошту ще не підтверджено, лист надіслано' };
+  }
+
+  @ApiOperation({ summary: 'Запросити відновлення пароля' })
+  @Post('forgot-password')
+  @HttpCode(200)
+  forgotPassword(@Body() dto: ForgotPasswordDTO) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @ApiOperation({ summary: 'Задати новий пароль за токеном з листа' })
+  @Post('reset-password')
+  @HttpCode(200)
+  resetPassword(@Body() dto: ResetPasswordDTO) {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 }
