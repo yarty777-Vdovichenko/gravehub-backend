@@ -7,6 +7,7 @@ import { ContractsModule } from './contracts/contracts.module';
 import { ProposalsModule } from './proposals/proposals.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { EmployeesModule } from './employees/employees.module';
+import { PlotsModule } from './plots/plots.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { EmployeesModule } from './employees/employees.module';
     ProposalsModule,
     ReviewsModule,
     EmployeesModule,
+    PlotsModule,
   ],
   controllers: [],
   providers: [],

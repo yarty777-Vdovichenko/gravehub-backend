@@ -3,13 +3,19 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UseGuards,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { calculateCredit } from './credit';
 import { CreditPreviewDto, PurchasePlotDto } from './dto/purchase-plot.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 const RESERVATION_MINUTES = 10;
 
+@ApiTags('Plots')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Injectable()
 export class PlotsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -41,7 +47,6 @@ export class PlotsService {
       },
     });
 
-    // прострочена резервація для клієнта виглядає як вільне місце
     return plots.map(({ reservedUntil, ...p }) => ({
       ...p,
       status:
