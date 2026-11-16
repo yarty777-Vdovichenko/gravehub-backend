@@ -53,6 +53,8 @@ Full request and response schemas are available in Swagger at `http://localhost:
 | Employee proposals | `POST /employee/contracts/:contractId/proposals`, `GET /employee/proposals`, `DELETE /employee/proposals/:id` |
 | Employees and reviews | `GET /employees` (search and filters), `GET /employees/:id`, `GET /employees/:id/reviews` |
 | Employee profile | `GET /employees/profile/me`, `PATCH /employees/profile/me`, `POST /employees/profile/me/media`, `DELETE /employees/profile/me/media/:mediaId` |
+| Conversations | `POST /conversations`, `GET /conversations`, `GET /conversations/:id/messages` |
+| Notifications | `GET /notifications`, `GET /notifications/unread-count`, `PATCH /notifications/:id/read`, `PATCH /notifications/read-all` |
 
 List endpoints use `page` and `limit` query parameters (limit 1-50, default 10) and respond with `{ items, total, page, limit, totalPages }`.
 
@@ -97,6 +99,20 @@ Authenticated employees can upload JPEG, PNG, WebP, MP4, WebM, and MOV files (up
 The profile update accepts any combination of `description`, `specializationIds` and `regionIds`. Supplying a service or region array replaces the whole list; use an empty array to remove all entries from that list. Omitted fields remain unchanged.
 
 To estimate a contract budget, send `POST /contracts/estimate` with `{ "serviceTypeIds": ["<service-uuid>", "..."] }`. The response contains each selected service's price and their total in `estimatedPrice`; the amount is an estimate based on the current service prices.
+
+## Chat and Real-Time Events
+
+Connect to the Socket.IO server with the access token in the handshake auth object:
+
+```js
+io('http://localhost:3000', { auth: { token: accessToken } });
+```
+
+The client sends `message:send` with `{ "conversationId": "<uuid>", "text": "Hello" }`. Its acknowledgement is `{ "ok": true, "message": { ... } }` or `{ "ok": false, "error": "..." }`. Participants receive `message:new` with `{ id, conversationId, senderId, text, createdAt, sender: { id, name } }`.
+
+The server sends `notification:new` with `{ id, userId, type, payload, readAt, createdAt }`. Types are `proposal_received`, `proposal_accepted`, `proposal_rejected` and `contract_status_changed`; payloads contain the relevant contract/proposal IDs, contract title and, for status changes, `from`/`to`.
+
+To test messaging, create a conversation first and run `node scripts/ws-test.mjs <sender-access-token> <recipient-access-token> <conversation-id>`. Both tokens must belong to participants in that conversation. The script prints the message received by the second user.
 
 ## Project Structure
 

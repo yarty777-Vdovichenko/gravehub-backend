@@ -8,6 +8,7 @@ import { ContractStatus, Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ListMyContractsDto } from './dto/list-my-contracts.dto';
 import { CreateReviewDto } from 'src/reviews/dto/create-review.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 const RESULT_SELECT = {
   id: true,
@@ -17,7 +18,10 @@ const RESULT_SELECT = {
 
 @Injectable()
 export class ContractWorkflowService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   private async getProfileId(userId: string) {
     const profile = await this.prisma.employeeProfile.findUnique({
@@ -33,6 +37,7 @@ export class ContractWorkflowService {
     owner: Prisma.ContractWhereInput,
     from: ContractStatus,
     to: ContractStatus,
+    actorId: string,
   ) {
     const { count } = await this.prisma.contract.updateMany({
       where: { id, status: from, ...owner },
@@ -46,10 +51,17 @@ export class ContractWorkflowService {
       if (!exists) throw new NotFoundException('Contract not found');
       throw new ConflictException('Contract is not in the required status');
     }
-    return this.prisma.contract.findUniqueOrThrow({
+    const contract = await this.prisma.contract.findUniqueOrThrow({
       where: { id },
       select: RESULT_SELECT,
     });
+    this.eventEmitter.emit('contract.statusChanged', {
+      contractId: id,
+      from,
+      to,
+      actorId,
+    });
+    return contract;
   }
 
   async complete(id: string, userId: string) {
@@ -59,12 +71,13 @@ export class ContractWorkflowService {
       { employeeId },
       ContractStatus.in_progress,
       ContractStatus.awaiting_confirmation,
+      userId,
     );
   }
 
   async confirm(id: string, userId: string, dto: CreateReviewDto) {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         const contract = await tx.contract.findFirst({
           where: { id, customerId: userId },
           select: {
@@ -138,6 +151,13 @@ export class ContractWorkflowService {
           review,
         };
       });
+      this.eventEmitter.emit('contract.statusChanged', {
+        contractId: id,
+        from: ContractStatus.awaiting_confirmation,
+        to: ContractStatus.completed,
+        actorId: userId,
+      });
+      return result;
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -156,6 +176,7 @@ export class ContractWorkflowService {
       { customerId: userId },
       ContractStatus.awaiting_confirmation,
       ContractStatus.in_progress,
+      userId,
     );
   }
 
