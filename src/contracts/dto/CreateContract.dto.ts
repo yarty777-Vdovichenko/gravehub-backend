@@ -1,5 +1,8 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayNotEmpty,
+  ArrayUnique,
+  IsArray,
   IsDate,
   IsNotEmpty,
   IsNumber,
@@ -22,8 +25,11 @@ export class CreateContractDto {
   @MaxLength(2000)
   description!: string;
 
-  @IsUUID()
-  serviceTypeId!: string;
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  serviceTypeIds!: string[];
 
   @IsUUID()
   regionId!: string;

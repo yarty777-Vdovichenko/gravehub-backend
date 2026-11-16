@@ -15,7 +15,7 @@ export function buildContractWhere(
   }
 
   if (query.serviceId) {
-    where.serviceTypeId = query.serviceId;
+    where.serviceTypes = { some: { id: query.serviceId } };
   }
 
   if (query.regionId) {

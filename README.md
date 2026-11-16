@@ -21,6 +21,7 @@ University coursework project. This repository contains the backend only; the Re
 - Customer contracts: create, list own, view one, delete (only while `open` and without an assigned employee).
 - Employee feed: search and filter open contracts in the employee's regions, plus contract details.
 - Employee search: search and filter providers by name, region, service and rating.
+- Employee profiles: edit the description, services and regions, and upload photo/video work samples to Cloudinary.
 - Proposals: an employee submits one proposal per contract, can cancel it while it is `pending`, and customers list proposals for their contract with the employee's rating, review count and completed contracts.
 - Accepting a proposal is a single operation: the contract moves to `in_progress` with the executor assigned, the chosen proposal becomes `accepted`, all other pending proposals become `rejected`.
 - Contract lifecycle: `open` -> `in_progress` -> `awaiting_confirmation` -> `completed`, with the option for the customer to send the work back (`awaiting_confirmation` -> `in_progress`). Invalid transitions return 409.
@@ -45,12 +46,13 @@ Full request and response schemas are available in Swagger at `http://localhost:
 | --- | --- |
 | Auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/roles/customer`, `/auth/roles/employee`, `/auth/switch-mode` |
 | Reference data | `GET /services`, `GET /regions` |
-| Customer contracts | `POST /contracts`, `GET /contracts/my` (search and filters), `GET /contracts/:id`, `DELETE /contracts/:id` |
+| Customer contracts | `POST /contracts/estimate`, `POST /contracts`, `GET /contracts/my` (search and filters), `GET /contracts/:id`, `DELETE /contracts/:id` |
 | Customer proposals | `GET /contracts/:id/proposals`, `POST /contracts/:contractId/proposals/:id/accept`, `POST /contracts/:contractId/proposals/:id/reject` |
 | Customer completion | `POST /customer/contracts/:id/confirm`, `POST /customer/contracts/:id/reject-completion` |
 | Employee contracts | `GET /employee/contracts` (search and filters), `GET /employee/contracts/:id`, `GET /employee/my-contracts`, `POST /employee/my-contracts/:id/complete` |
 | Employee proposals | `POST /employee/contracts/:contractId/proposals`, `GET /employee/proposals`, `DELETE /employee/proposals/:id` |
-| Employees and reviews | `GET /employees` (search and filters), `GET /employees/:id/reviews` |
+| Employees and reviews | `GET /employees` (search and filters), `GET /employees/:id`, `GET /employees/:id/reviews` |
+| Employee profile | `GET /employees/profile/me`, `PATCH /employees/profile/me`, `POST /employees/profile/me/media`, `DELETE /employees/profile/me/media/:mediaId` |
 
 List endpoints use `page` and `limit` query parameters (limit 1-50, default 10) and respond with `{ items, total, page, limit, totalPages }`.
 
@@ -75,6 +77,26 @@ npm run start:dev
 ```
 
 The API is available at `http://localhost:3000`, Swagger at `http://localhost:3000/docs`. The seed fills services and regions and is safe to run repeatedly. After each `git pull`, run `npm install` and `npx prisma migrate deploy` again.
+
+## Cloudinary Setup
+
+1. Create a Cloudinary account at [cloudinary.com](https://cloudinary.com/).
+2. In the Cloudinary Console, copy the cloud name, API key and API secret.
+3. Add them to your local `.env` file:
+
+   ```dotenv
+   CLOUDINARY_CLOUD_NAME="your-cloud-name"
+   CLOUDINARY_API_KEY="your-api-key"
+   CLOUDINARY_API_SECRET="your-api-secret"
+   ```
+
+4. Restart the backend. Keep the API secret private and never commit `.env`.
+
+Authenticated employees can upload JPEG, PNG, WebP, MP4, WebM, and MOV files (up to 50 MB each) as multipart form data using the `file` field; `caption` is optional. Public employee profiles include the uploaded work samples.
+
+The profile update accepts any combination of `description`, `specializationIds` and `regionIds`. Supplying a service or region array replaces the whole list; use an empty array to remove all entries from that list. Omitted fields remain unchanged.
+
+To estimate a contract budget, send `POST /contracts/estimate` with `{ "serviceTypeIds": ["<service-uuid>", "..."] }`. The response contains each selected service's price and their total in `estimatedPrice`; the amount is an estimate based on the current service prices.
 
 ## Project Structure
 
