@@ -8,10 +8,14 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateProposalDto } from './dto/create-proposal.dto';
 import { Prisma, ProposalStatus } from '@prisma/client';
 import { ListProposalsDto } from './dto/list-proposals.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class ProposalsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   private async getProfileId(userId: string) {
     const profile = await this.prisma.employeeProfile.findUnique({
@@ -29,7 +33,7 @@ export class ProposalsService {
     if (!proposal) {
       throw new NotFoundException('Proposal not found');
     }
-    return this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const c = await tx.contract.updateMany({
         where: {
           id: contractId,
@@ -52,15 +56,35 @@ export class ProposalsService {
       if (p.count === 0) {
         throw new ConflictException('Proposal is already processed');
       }
-      await tx.proposal.updateMany({
+      const rejected = await tx.proposal.updateManyAndReturn({
         where: { contractId, id: { not: proposalId }, status: 'pending' },
         data: { status: 'rejected' },
+        select: { id: true },
       });
-      return tx.contract.findUniqueOrThrow({
-        where: { id: contractId },
-        select: { id: true, status: true, employeeId: true },
-      });
+
+      return {
+        contract: await tx.contract.findUniqueOrThrow({
+          where: { id: contractId },
+          select: { id: true, status: true, employeeId: true },
+        }),
+        rejectedProposalIds: rejected.map(({ id }) => id),
+      };
     });
+
+    this.eventEmitter.emit('proposal.accepted', { proposalId, contractId });
+    for (const rejectedProposalId of outcome.rejectedProposalIds) {
+      this.eventEmitter.emit('proposal.rejected', {
+        proposalId: rejectedProposalId,
+        contractId,
+      });
+    }
+    this.eventEmitter.emit('contract.statusChanged', {
+      contractId,
+      from: 'open',
+      to: 'in_progress',
+      actorId: userId,
+    });
+    return outcome.contract;
   }
   async reject(contractId: string, proposalId: string, userId: string) {
     const { count } = await this.prisma.proposal.updateMany({
@@ -73,6 +97,7 @@ export class ProposalsService {
       data: { status: 'rejected' },
     });
     if (count === 0) throw new NotFoundException('Proposal not found');
+    this.eventEmitter.emit('proposal.rejected', { proposalId, contractId });
     return { id: proposalId, status: 'rejected' };
   }
   async propose(contractId: string, userId: string, dto: CreateProposalDto) {
@@ -93,26 +118,32 @@ export class ProposalsService {
     });
     if (!contract) throw new NotFoundException('Contract not found');
 
-    try {
-      return await this.prisma.proposal.create({
+    const proposal = await this.prisma.proposal
+      .create({
         data: {
           contractId,
           employeeId: profile.id,
           price: dto.price,
           comment: dto.comment,
         },
+      })
+      .catch((error: unknown) => {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          throw new ConflictException(
+            'You already submitted a proposal for this contract',
+          );
+        }
+        throw error;
       });
-    } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'You already submitted a proposal for this contract',
-        );
-      }
-      throw e;
-    }
+
+    this.eventEmitter.emit('proposal.created', {
+      proposalId: proposal.id,
+      contractId: proposal.contractId,
+    });
+    return proposal;
   }
   async cancel(proposalId: string, userId: string) {
     const employeeId = await this.getProfileId(userId);

@@ -34,6 +34,13 @@ enum EmployeeMediaType {
   video
 }
 
+enum NotificationType {
+  proposal_received
+  proposal_accepted
+  proposal_rejected
+  contract_status_changed
+}
+
 enum ContractStatus {
   open
   in_progress
@@ -67,6 +74,10 @@ model User {
   ownedPlots    BurialPlot[]  @relation("PlotOwner")
   plotPurchases PlotPurchase[]
   tokens UserToken[]
+  conversationsAsCustomer Conversation[] @relation("ConversationCustomer")
+  conversationsAsEmployee Conversation[] @relation("ConversationEmployee")
+  sentMessages Message[]
+  notifications Notification[]
 }
 
 model EmployeeProfile {
@@ -234,4 +245,43 @@ model UserToken {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, type])
+}
+
+model Conversation {
+  id            String    @id @default(uuid())
+  customerId    String
+  employeeId    String
+  createdAt     DateTime  @default(now())
+  lastMessageAt DateTime  @default(now())
+  customer      User      @relation("ConversationCustomer", fields: [customerId], references: [id])
+  employee      User      @relation("ConversationEmployee", fields: [employeeId], references: [id])
+  messages      Message[]
+
+  @@unique([customerId, employeeId])
+  @@index([customerId, lastMessageAt])
+  @@index([employeeId, lastMessageAt])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  text           String
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
 }
