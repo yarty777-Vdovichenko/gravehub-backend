@@ -31,7 +31,7 @@ export class EmployeeContractsService {
         where,
         include: {
           region: true,
-          serviceType: true,
+          serviceTypes: true,
           customer: { select: { id: true, name: true } },
         },
         skip: (query.page - 1) * query.limit,
@@ -69,7 +69,7 @@ export class EmployeeContractsService {
       },
       include: {
         region: true,
-        serviceType: true,
+        serviceTypes: true,
         customer: { select: { id: true, name: true } },
       },
     });

@@ -29,6 +29,11 @@ enum EmployeeStatus {
   offline
 }
 
+enum EmployeeMediaType {
+  image
+  video
+}
+
 enum ContractStatus {
   open
   in_progress
@@ -75,9 +80,23 @@ model EmployeeProfile {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id])
   specialization   Service[]
+  portfolio EmployeeMedia[]
   contracts  Contract[]
   proposals  Proposal[]
   reviews    Review[]
+}
+
+model EmployeeMedia {
+  id           String            @id @default(uuid())
+  employeeId   String
+  url          String
+  publicId     String
+  type         EmployeeMediaType
+  caption      String?
+  createdAt    DateTime          @default(now())
+  employee     EmployeeProfile   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, createdAt])
 }
 
 model Region {
@@ -91,7 +110,6 @@ model Contract {
   id            String         @id @default(uuid())
   title         String
   description   String
-  serviceTypeId String
   customerId    String
   regionId      String
   positionX     Float
@@ -104,7 +122,7 @@ model Contract {
   region        Region           @relation(fields: [regionId], references: [id])
   employee      EmployeeProfile? @relation(fields: [employeeId], references: [id])
   customer      User             @relation(fields: [customerId], references: [id])
-  serviceType   Service          @relation(fields: [serviceTypeId], references: [id])
+  serviceTypes  Service[]        @relation("ContractServices")
   proposals     Proposal[]
   review        Review?
 
@@ -119,7 +137,7 @@ model Service {
   description String
   price Float
   employeeProfile EmployeeProfile[]
-  contract Contract[]
+  contract Contract[] @relation("ContractServices")
 }
 
 model Proposal {

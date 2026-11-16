@@ -19,6 +19,7 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { CreateContractDto } from './dto/CreateContract.dto';
 import { ContractsQueryDto } from './dto/contracts-query.dto';
+import { EstimateContractPriceDto } from './dto/estimate-contract-price.dto';
 
 type AuthRequest = Request & { user: { userId: string; role: string } };
 
@@ -29,6 +30,12 @@ type AuthRequest = Request & { user: { userId: string; role: string } };
 @Controller('contracts')
 export class ContractsController {
   constructor(private readonly contractsService: ContractsService) {}
+
+  @Post('estimate')
+  @HttpCode(200)
+  estimatePrice(@Body() dto: EstimateContractPriceDto) {
+    return this.contractsService.estimatePrice(dto.serviceTypeIds);
+  }
 
   @Post()
   createContract(@Body() dto: CreateContractDto, @Req() req: AuthRequest) {

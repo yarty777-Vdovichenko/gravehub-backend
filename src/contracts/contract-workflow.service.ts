@@ -179,7 +179,7 @@ export class ContractWorkflowService {
           date: true,
           createdAt: true,
           regionId: true,
-          serviceTypeId: true,
+          serviceTypes: { select: { id: true } },
         },
       }),
       this.prisma.contract.count({ where }),
