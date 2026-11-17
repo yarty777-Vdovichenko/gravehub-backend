@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import { PlotStatus, Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -64,6 +64,42 @@ const services = [
     description: 'Регулярне прибирання, фарбування огорожі, висадка квітів',
     price: 1500,
   },
+  {
+    id: 'b0000000-0000-4000-8000-000000000011',
+    name: 'Гранітний пам’ятник',
+    description: 'Виготовлення та встановлення одинарного пам’ятника з граніту',
+    price: 24000,
+  },
+  {
+    id: 'b0000000-0000-4000-8000-000000000012',
+    name: 'Подвійний пам’ятник',
+    description: 'Комплектний подвійний пам’ятник із граніту',
+    price: 42000,
+  },
+  {
+    id: 'b0000000-0000-4000-8000-000000000013',
+    name: 'Мармуровий пам’ятник',
+    description: 'Виготовлення пам’ятника з натурального мармуру',
+    price: 32000,
+  },
+  {
+    id: 'b0000000-0000-4000-8000-000000000014',
+    name: 'Гравіювання портрета',
+    description: 'Лазерне гравіювання портрета та напису на камені',
+    price: 5500,
+  },
+  {
+    id: 'b0000000-0000-4000-8000-000000000015',
+    name: 'Встановлення пам’ятника',
+    description: 'Підготовка основи, доставка та монтаж пам’ятника',
+    price: 7000,
+  },
+  {
+    id: 'b0000000-0000-4000-8000-000000000016',
+    name: 'Реставрація пам’ятника',
+    description: 'Очищення, відновлення написів та ремонт каменю',
+    price: 6500,
+  },
 ];
 
 const regions = [
@@ -122,7 +158,106 @@ const cemeteries = [
     latitude: 49.4501,
     longitude: 27.0212,
   },
+  {
+    id: '00000000-0000-0000-0000-00000000c003',
+    name: 'Личаківське кладовище',
+    city: 'Львів',
+    latitude: 49.8397,
+    longitude: 24.0297,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c004',
+    name: 'Байкове кладовище',
+    city: 'Київ',
+    latitude: 50.4102,
+    longitude: 30.5121,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c005',
+    name: 'Берковецьке кладовище',
+    city: 'Київ',
+    latitude: 50.516,
+    longitude: 30.3478,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c006',
+    name: 'Таїровське кладовище',
+    city: 'Одеса',
+    latitude: 46.383,
+    longitude: 30.711,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c007',
+    name: 'Міське кладовище №2',
+    city: 'Харків',
+    latitude: 49.9935,
+    longitude: 36.2304,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c008',
+    name: 'Запорізьке кладовище',
+    city: 'Дніпро',
+    latitude: 48.437,
+    longitude: 35.008,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c009',
+    name: 'Центральне кладовище',
+    city: 'Вінниця',
+    latitude: 49.2331,
+    longitude: 28.4682,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c010',
+    name: 'Міське кладовище',
+    city: 'Івано-Франківськ',
+    latitude: 48.9226,
+    longitude: 24.7111,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c011',
+    name: 'Микулинецьке кладовище',
+    city: 'Тернопіль',
+    latitude: 49.5469,
+    longitude: 25.5948,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c012',
+    name: 'Центральне кладовище',
+    city: 'Полтава',
+    latitude: 49.5883,
+    longitude: 34.5514,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c013',
+    name: 'Яцевське кладовище',
+    city: 'Чернігів',
+    latitude: 51.498,
+    longitude: 31.289,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c014',
+    name: 'Кладовище Барвінок',
+    city: 'Ужгород',
+    latitude: 48.619,
+    longitude: 22.298,
+  },
+  {
+    id: '00000000-0000-0000-0000-00000000c015',
+    name: 'Міське кладовище',
+    city: 'Луцьк',
+    latitude: 50.747,
+    longitude: 25.325,
+  },
 ];
+
+function seededHash(value: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
+  }
+  return hash >>> 0;
+}
 
 async function main() {
   console.log('Заповнення послуг...');
@@ -137,26 +272,43 @@ async function main() {
   for (const c of cemeteries) {
     await prisma.cemetery.upsert({ where: { id: c.id }, update: c, create: c });
 
-    const COLS = 10;
-    const ROWS = 8;
-    for (let x = 0; x < COLS; x++) {
-      for (let y = 0; y < ROWS; y++) {
-        const distance = x + y;
-        const base = 30000 - distance * 1200;
-        const price = Math.round((base + Math.random() * 2000) / 100) * 100;
+    const layoutSeed = seededHash(`${c.id}:layout`);
+    const columns = 16 + (layoutSeed % 9);
+    const rows = 12 + ((layoutSeed >>> 8) % 7);
+    const plots: Prisma.BurialPlotCreateManyInput[] = [];
+    const soldPositions: { positionX: number; positionY: number }[] = [];
 
-        await prisma.burialPlot.upsert({
-          where: {
-            cemeteryId_positionX_positionY: {
-              cemeteryId: c.id,
-              positionX: x,
-              positionY: y,
-            },
-          },
-          update: {},
-          create: { cemeteryId: c.id, positionX: x, positionY: y, price },
+    for (let x = 0; x < columns; x++) {
+      for (let y = 0; y < rows; y++) {
+        const hash = seededHash(`${c.id}:${x}:${y}`);
+        const price =
+          Math.round((45000 - (x + y) * 500 + (hash % 5000)) / 100) * 100;
+        const sold = hash % 100 < 28;
+        plots.push({
+          cemeteryId: c.id,
+          positionX: x,
+          positionY: y,
+          price,
+          status: sold ? PlotStatus.sold : PlotStatus.available,
         });
+        if (sold) soldPositions.push({ positionX: x, positionY: y });
       }
+    }
+
+    await prisma.burialPlot.createMany({ data: plots, skipDuplicates: true });
+
+    if (soldPositions.length > 0) {
+      await prisma.burialPlot.updateMany({
+        where: {
+          cemeteryId: c.id,
+          status: PlotStatus.available,
+          ownerId: null,
+          reservedById: null,
+          purchase: { is: null },
+          OR: soldPositions,
+        },
+        data: { status: PlotStatus.sold },
+      });
     }
   }
 
