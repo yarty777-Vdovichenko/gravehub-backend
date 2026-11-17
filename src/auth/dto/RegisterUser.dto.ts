@@ -17,7 +17,7 @@ export class RegisterUserDTO {
   email!: string;
 
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
   @MaxLength(72)
   password!: string;
 
