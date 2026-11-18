@@ -80,6 +80,22 @@ npm run start:dev
 
 The API is available at `http://localhost:3000`, Swagger at `http://localhost:3000/docs`. The seed fills services and regions and is safe to run repeatedly. After each `git pull`, run `npm install` and `npx prisma migrate deploy` again.
 
+## Tests
+
+Run unit tests from the project root:
+
+```bash
+npm test
+```
+
+Jest runs `*.spec.ts` files under `src/`. Tests use Prisma mocks and do not require a running database.
+
+```bash
+npm run test:watch
+npm run test:cov
+npm test -- --runInBand plots/credit.spec.ts
+```
+
 ## Cloudinary Setup
 
 1. Create a Cloudinary account at [cloudinary.com](https://cloudinary.com/).
