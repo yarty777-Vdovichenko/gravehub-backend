@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { ContractLocationType } from '@prisma/client';
 import { ContractsQueryDto } from './dto/contracts-query.dto';
 import { buildContractWhere } from './contracts-query.util';
+import { selectableServiceWhere } from 'src/services/services-query.util';
 
 @Injectable()
 export class ContractsService {
@@ -101,7 +102,9 @@ export class ContractsService {
         },
       },
       include: {
-        serviceTypes: true,
+        serviceTypes: {
+          include: { parent: { select: { id: true, name: true } } },
+        },
         burialPlot: {
           select: {
             id: true,
@@ -129,15 +132,23 @@ export class ContractsService {
 
   private async getServices(serviceTypeIds: string[]) {
     const services = await this.prisma.service.findMany({
-      where: { id: { in: serviceTypeIds } },
+      where: {
+        id: { in: serviceTypeIds },
+        ...selectableServiceWhere,
+      },
       select: { id: true, name: true, price: true },
     });
 
-    if (services.length !== serviceTypeIds.length) {
+    const pricedServices = services.filter(
+      (service): service is typeof service & { price: number } =>
+        service.price !== null,
+    );
+
+    if (pricedServices.length !== serviceTypeIds.length) {
       throw new BadRequestException('One or more serviceTypeIds are invalid');
     }
 
-    return services;
+    return pricedServices;
   }
 
   async getMine(userId: string, query: ContractsQueryDto) {
@@ -152,7 +163,9 @@ export class ContractsService {
         skip: (query.page - 1) * query.limit,
         take: query.limit,
         include: {
-          serviceTypes: true,
+          serviceTypes: {
+            include: { parent: { select: { id: true, name: true } } },
+          },
           burialPlot: {
             select: {
               id: true,
@@ -182,7 +195,9 @@ export class ContractsService {
     const contract = await this.prisma.contract.findFirst({
       where: { id, customerId: userId },
       include: {
-        serviceTypes: true,
+        serviceTypes: {
+          include: { parent: { select: { id: true, name: true } } },
+        },
         burialPlot: {
           select: {
             id: true,

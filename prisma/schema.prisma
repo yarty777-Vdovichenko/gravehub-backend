@@ -157,9 +157,14 @@ model Service {
   id              String            @id @default(uuid())
   name            String
   description     String
-  price           Float
+  price           Float?
+  parentId        String?
+  parent          Service?          @relation("ServiceHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children        Service[]         @relation("ServiceHierarchy")
   employeeProfile EmployeeProfile[]
   contract        Contract[]        @relation("ContractServices")
+
+  @@index([parentId])
 }
 
 model Proposal {

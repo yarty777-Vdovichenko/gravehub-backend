@@ -10,6 +10,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { EmployeesQueryDto } from './dto/employees-query.dto';
 import { UpdateEmployeeProfileDto } from './dto/update-employee-profile.dto';
 import { CloudinaryService } from './cloudinary.service';
+import { selectableServiceWhere } from 'src/services/services-query.util';
 import type { EmployeeMediaType } from './cloudinary.service';
 import type { Express } from 'express';
 
@@ -19,7 +20,13 @@ const employeeSelect = {
   completedContracts: true,
   user: { select: { id: true, name: true } },
   regions: { select: { id: true, name: true } },
-  specialization: { select: { id: true, name: true } },
+  specialization: {
+    select: {
+      id: true,
+      name: true,
+      parent: { select: { id: true, name: true } },
+    },
+  },
 } satisfies Prisma.EmployeeProfileSelect;
 
 const employeeProfileDetailsSelect = {
@@ -136,7 +143,10 @@ export class EmployeesService {
       dto.specializationIds === undefined
         ? 0
         : this.prisma.service.count({
-            where: { id: { in: dto.specializationIds } },
+            where: {
+              id: { in: dto.specializationIds },
+              ...selectableServiceWhere,
+            },
           }),
       dto.regionIds === undefined
         ? 0

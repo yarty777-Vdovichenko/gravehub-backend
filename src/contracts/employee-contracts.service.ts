@@ -31,7 +31,9 @@ export class EmployeeContractsService {
         where,
         include: {
           region: true,
-          serviceTypes: true,
+          serviceTypes: {
+            include: { parent: { select: { id: true, name: true } } },
+          },
           burialPlot: {
             select: {
               id: true,
@@ -79,7 +81,9 @@ export class EmployeeContractsService {
       },
       include: {
         region: true,
-        serviceTypes: true,
+        serviceTypes: {
+          include: { parent: { select: { id: true, name: true } } },
+        },
         burialPlot: {
           select: {
             id: true,

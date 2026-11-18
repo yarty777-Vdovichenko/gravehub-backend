@@ -17,6 +17,7 @@ import { EmployeeProfileDTO } from './dto/EmployeeProfile.dto';
 import { env } from '../config/env';
 import { MailService } from '../mail/mail.service';
 import { AccountTokensService } from './account-tokens.service';
+import { selectableServiceWhere } from 'src/services/services-query.util';
 
 @Injectable()
 export class AuthService {
@@ -62,7 +63,10 @@ export class AuthService {
       const { specializationIds, regionIds } = dto.employeeProfile;
 
       const services = await this.prisma.service.findMany({
-        where: { id: { in: specializationIds } },
+        where: {
+          id: { in: specializationIds },
+          ...selectableServiceWhere,
+        },
       });
 
       if (services.length !== specializationIds.length) {
@@ -243,7 +247,10 @@ export class AuthService {
     }
 
     const services = await this.prisma.service.findMany({
-      where: { id: { in: dto.specializationIds } },
+      where: {
+        id: { in: dto.specializationIds },
+        ...selectableServiceWhere,
+      },
     });
 
     if (services.length !== dto.specializationIds.length) {

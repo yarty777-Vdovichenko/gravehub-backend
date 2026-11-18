@@ -58,6 +58,23 @@ describe('ContractsService price estimate', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('rejects a parent category when estimating contract services', async () => {
+    findServices.mockResolvedValue([]);
+
+    await expect(
+      service.estimatePrice(['category-1']),
+    ).rejects.toThrow(BadRequestException);
+    expect(findServices).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['category-1'] },
+        parentId: { not: null },
+        price: { not: null },
+        children: { none: {} },
+      },
+      select: { id: true, name: true, price: true },
+    });
+  });
+
   it('allows the customer to create a contract for their purchased plot', async () => {
     findServices.mockResolvedValue([
       { id: 'service-1', name: 'Service', price: 10 },
@@ -104,7 +121,9 @@ describe('ContractsService price estimate', () => {
         serviceTypes: { connect: [{ id: 'service-1' }] },
       },
       include: {
-        serviceTypes: true,
+        serviceTypes: {
+          include: { parent: { select: { id: true, name: true } } },
+        },
         burialPlot: {
           select: {
             id: true,

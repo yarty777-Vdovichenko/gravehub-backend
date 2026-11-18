@@ -17,7 +17,7 @@ University coursework project. This repository contains the backend only; the Re
 - Registration and login with two roles, `customer` and `employee`. One account can hold both roles and switch between them (`activeMode`), and the active mode is stored on the backend.
 - Refresh token rotation: every refresh issues a new pair and invalidates the old one. One active session per user.
 - Role-based access: customer endpoints and employee endpoints are separated by the active mode and return 403 otherwise.
-- Public reference data: services and regions, seeded with fixed UUIDs (idempotent seed).
+- Public reference data: hierarchical service categories and selectable subservices, plus regions, seeded with fixed UUIDs (idempotent seed).
 - Customer contracts: create, list own, view one, delete (only while `open` and without an assigned employee).
 - Employee feed: search and filter open contracts in the employee's regions, plus contract details.
 - Employee search: search and filter providers by name, region, service and rating.
@@ -45,7 +45,7 @@ Full request and response schemas are available in Swagger at `http://localhost:
 | Area | Endpoints |
 | --- | --- |
 | Auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/roles/customer`, `/auth/roles/employee`, `/auth/switch-mode` |
-| Reference data | `GET /services`, `GET /regions` |
+| Reference data | `GET /services` (categories with selectable subservices), `GET /regions` |
 | Customer contracts | `POST /contracts/estimate`, `POST /contracts`, `GET /contracts/my` (search and filters), `GET /contracts/:id`, `DELETE /contracts/:id` |
 | Customer proposals | `GET /contracts/:id/proposals`, `POST /contracts/:contractId/proposals/:id/accept`, `POST /contracts/:contractId/proposals/:id/reject` |
 | Customer completion | `POST /customer/contracts/:id/confirm`, `POST /customer/contracts/:id/reject-completion` |
@@ -112,7 +112,9 @@ npm test -- --runInBand plots/credit.spec.ts
 
 Authenticated employees can upload JPEG, PNG, WebP, MP4, WebM, and MOV files (up to 50 MB each) as multipart form data using the `file` field; `caption` is optional. Public employee profiles include the uploaded work samples.
 
-The profile update accepts any combination of `description`, `specializationIds` and `regionIds`. Supplying a service or region array replaces the whole list; use an empty array to remove all entries from that list. Omitted fields remain unchanged.
+`GET /services` returns categories with their selectable subservices. Employee profiles and contracts store subservice IDs only; category IDs cannot be selected. Each subservice carries its own price.
+
+The profile update accepts any combination of `description`, `specializationIds` and `regionIds`. `specializationIds` must contain subservice IDs. Supplying a service or region array replaces the whole list; use an empty array to remove all entries from that list. Omitted fields remain unchanged.
 
 To estimate a contract budget, send `POST /contracts/estimate` with `{ "serviceTypeIds": ["<service-uuid>", "..."] }`. The response contains each selected service's price and their total in `estimatedPrice`; the amount is an estimate based on the current service prices.
 
