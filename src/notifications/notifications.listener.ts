@@ -16,6 +16,14 @@ interface ContractStatusChangedEvent {
   actorId: string;
 }
 
+interface ChatMessageCreatedEvent {
+  conversationId: string;
+  messageId: string;
+  senderId: string;
+  recipientId: string;
+  text: string;
+}
+
 @Injectable()
 export class NotificationsListener {
   private readonly logger = new Logger(NotificationsListener.name);
@@ -119,6 +127,51 @@ export class NotificationsListener {
           contractTitle: contract.title,
           from: event.from,
           to: event.to,
+        },
+      );
+    });
+  }
+
+  @OnEvent('chat.messageCreated')
+  onChatMessageCreated(event: ChatMessageCreatedEvent) {
+    return this.handle('chat.messageCreated', async () => {
+      const [sender, conversation] = await Promise.all([
+        this.prisma.user.findUnique({
+          where: { id: event.senderId },
+          select: { id: true, name: true },
+        }),
+        this.prisma.conversation.findUnique({
+          where: { id: event.conversationId },
+          select: {
+            id: true,
+            customerId: true,
+            employeeId: true,
+          },
+        }),
+      ]);
+
+      if (!sender) {
+        throw new Error('Message sender for notification was not found');
+      }
+      if (
+        !conversation ||
+        (conversation.customerId !== event.senderId &&
+          conversation.employeeId !== event.senderId) ||
+        (conversation.customerId !== event.recipientId &&
+          conversation.employeeId !== event.recipientId)
+      ) {
+        throw new Error('Conversation for message notification was not found');
+      }
+
+      await this.createAndEmit(
+        event.recipientId,
+        NotificationType.new_message,
+        {
+          conversationId: event.conversationId,
+          messageId: event.messageId,
+          senderId: event.senderId,
+          senderName: sender.name,
+          text: event.text,
         },
       );
     });

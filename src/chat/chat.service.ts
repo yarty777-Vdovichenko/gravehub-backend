@@ -5,11 +5,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   async createConversation(customerId: string, employeeProfileId: string) {
     const employee = await this.prisma.employeeProfile.findUnique({
@@ -130,7 +134,7 @@ export class ChatService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const conversation = await tx.conversation.findUnique({
         where: { id: conversationId },
         select: { id: true, customerId: true, employeeId: true },
@@ -166,6 +170,18 @@ export class ChatService {
         employeeId: conversation.employeeId,
       };
     });
+
+    const recipientId =
+      result.customerId === userId ? result.employeeId : result.customerId;
+    this.eventEmitter.emit('chat.messageCreated', {
+      conversationId,
+      messageId: result.message.id,
+      senderId: userId,
+      recipientId,
+      text: trimmedText,
+    });
+
+    return result;
   }
 
   private async assertConversationMember(
