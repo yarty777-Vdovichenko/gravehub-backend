@@ -39,6 +39,7 @@ enum NotificationType {
   proposal_accepted
   proposal_rejected
   contract_status_changed
+  new_message
 }
 
 enum ContractStatus {
@@ -49,6 +50,12 @@ enum ContractStatus {
   cancelled
 }
 
+enum ContractLocationType {
+  coordinates
+  burial_plot
+  address
+}
+
 enum ProposalStatus {
   pending
   accepted
@@ -57,85 +64,89 @@ enum ProposalStatus {
 }
 
 model User {
-  id String @id @default(uuid())
-  email String @unique
-  passwordHash String
-  name String
-  status UserStatus
-  createdAt DateTime @default(now())
-  hashedRefreshToken String?
-  roles Role[]
-  activeMode Role
-  employeeProfile EmployeeProfile?
-  emailVerified Boolean @default(false)
-  contracts Contract[]
-  reviews   Review[]
-  reservedPlots BurialPlot[]  @relation("PlotReservedBy")
-  ownedPlots    BurialPlot[]  @relation("PlotOwner")
-  plotPurchases PlotPurchase[]
-  tokens UserToken[]
-  conversationsAsCustomer Conversation[] @relation("ConversationCustomer")
-  conversationsAsEmployee Conversation[] @relation("ConversationEmployee")
-  sentMessages Message[]
-  notifications Notification[]
+  id                      String           @id @default(uuid())
+  email                   String           @unique
+  passwordHash            String
+  name                    String
+  status                  UserStatus
+  createdAt               DateTime         @default(now())
+  hashedRefreshToken      String?
+  roles                   Role[]
+  activeMode              Role
+  employeeProfile         EmployeeProfile?
+  emailVerified           Boolean          @default(false)
+  contracts               Contract[]
+  reviews                 Review[]
+  reservedPlots           BurialPlot[]     @relation("PlotReservedBy")
+  ownedPlots              BurialPlot[]     @relation("PlotOwner")
+  plotPurchases           PlotPurchase[]
+  tokens                  UserToken[]
+  conversationsAsCustomer Conversation[]   @relation("ConversationCustomer")
+  conversationsAsEmployee Conversation[]   @relation("ConversationEmployee")
+  sentMessages            Message[]
+  notifications           Notification[]
 }
 
 model EmployeeProfile {
-  id String @id @default(uuid())
-  description String
-  regions Region[]
-  status EmployeeStatus
-  rating Float @default(0)
-  completedContracts Int @default(0)
-  reviewsCount Int @default(0)
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id])
-  specialization   Service[]
-  portfolio EmployeeMedia[]
-  contracts  Contract[]
-  proposals  Proposal[]
-  reviews    Review[]
+  id                 String          @id @default(uuid())
+  description        String
+  regions            Region[]
+  status             EmployeeStatus
+  rating             Float           @default(0)
+  completedContracts Int             @default(0)
+  reviewsCount       Int             @default(0)
+  userId             String          @unique
+  user               User            @relation(fields: [userId], references: [id])
+  specialization     Service[]
+  portfolio          EmployeeMedia[]
+  contracts          Contract[]
+  proposals          Proposal[]
+  reviews            Review[]
 }
 
 model EmployeeMedia {
-  id           String            @id @default(uuid())
-  employeeId   String
-  url          String
-  publicId     String
-  type         EmployeeMediaType
-  caption      String?
-  createdAt    DateTime          @default(now())
-  employee     EmployeeProfile   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id         String            @id @default(uuid())
+  employeeId String
+  url        String
+  publicId   String
+  type       EmployeeMediaType
+  caption    String?
+  createdAt  DateTime          @default(now())
+  employee   EmployeeProfile   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId, createdAt])
 }
 
 model Region {
-  id String @id @default(uuid())
-  name String
+  id        String            @id @default(uuid())
+  name      String
   employees EmployeeProfile[]
   contracts Contract[]
 }
 
 model Contract {
-  id            String         @id @default(uuid())
-  title         String
-  description   String
-  customerId    String
-  regionId      String
-  positionX     Float
-  positionY     Float
-  date          DateTime
-  budget        Float
-  createdAt     DateTime       @default(now())
-  employeeId    String?
-  status        ContractStatus @default(open)
-  region        Region           @relation(fields: [regionId], references: [id])
-  employee      EmployeeProfile? @relation(fields: [employeeId], references: [id])
-  customer      User             @relation(fields: [customerId], references: [id])
-  serviceTypes  Service[]        @relation("ContractServices")
-  proposals     Proposal[]
-  review        Review?
+  id           String               @id @default(uuid())
+  title        String
+  description  String
+  customerId   String
+  regionId     String
+  locationType ContractLocationType @default(coordinates)
+  positionX    Float?
+  positionY    Float?
+  address      String?
+  burialPlotId String?
+  date         DateTime
+  budget       Float
+  createdAt    DateTime             @default(now())
+  employeeId   String?
+  status       ContractStatus       @default(open)
+  region       Region               @relation(fields: [regionId], references: [id])
+  employee     EmployeeProfile?     @relation(fields: [employeeId], references: [id])
+  customer     User                 @relation(fields: [customerId], references: [id])
+  burialPlot   BurialPlot?          @relation(fields: [burialPlotId], references: [id])
+  serviceTypes Service[]            @relation("ContractServices")
+  proposals    Proposal[]
+  review       Review?
 
   @@index([customerId])
   @@index([employeeId, status])
@@ -143,24 +154,24 @@ model Contract {
 }
 
 model Service {
-  id String @id @default(uuid())
-  name String
-  description String
-  price Float
+  id              String            @id @default(uuid())
+  name            String
+  description     String
+  price           Float
   employeeProfile EmployeeProfile[]
-  contract Contract[] @relation("ContractServices")
+  contract        Contract[]        @relation("ContractServices")
 }
 
 model Proposal {
-  id         String           @id @default(uuid())
+  id         String          @id @default(uuid())
   contractId String
   employeeId String
   price      Int
   comment    String
-  status     ProposalStatus   @default(pending)
-  createdAt  DateTime         @default(now())
-  contract   Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  employee   EmployeeProfile  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  status     ProposalStatus  @default(pending)
+  createdAt  DateTime        @default(now())
+  contract   Contract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  employee   EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, employeeId])
   @@index([employeeId])
@@ -183,45 +194,46 @@ model Cemetery {
 }
 
 model BurialPlot {
-  id           String     @id @default(uuid())
-  cemeteryId   String
-  positionX    Int
-  positionY    Int
-  price        Int
-  status       PlotStatus @default(available)
-  reservedById String?
+  id            String        @id @default(uuid())
+  cemeteryId    String
+  positionX     Int
+  positionY     Int
+  price         Int
+  status        PlotStatus    @default(available)
+  reservedById  String?
   reservedUntil DateTime?
-  ownerId      String?
-  cemetery     Cemetery   @relation(fields: [cemeteryId], references: [id])
-  reservedBy   User?      @relation("PlotReservedBy", fields: [reservedById], references: [id])
-  owner        User?      @relation("PlotOwner", fields: [ownerId], references: [id])
-  purchase     PlotPurchase?
+  ownerId       String?
+  cemetery      Cemetery      @relation(fields: [cemeteryId], references: [id])
+  reservedBy    User?         @relation("PlotReservedBy", fields: [reservedById], references: [id])
+  owner         User?         @relation("PlotOwner", fields: [ownerId], references: [id])
+  purchase      PlotPurchase?
+  contracts     Contract[]
 
   @@unique([cemeteryId, positionX, positionY])
 }
 
 model PlotPurchase {
-  id             String   @id @default(uuid())
-  plotId         String   @unique
+  id             String     @id @default(uuid())
+  plotId         String     @unique
   userId         String
   price          Int
   paymentType    String
   creditMonths   Int?
   downPayment    Int?
   monthlyPayment Int?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime   @default(now())
   plot           BurialPlot @relation(fields: [plotId], references: [id])
   user           User       @relation(fields: [userId], references: [id])
 }
 
 model Review {
-  id         String   @id @default(uuid())
-  contractId String   @unique
+  id         String          @id @default(uuid())
+  contractId String          @unique
   employeeId String
   customerId String
   rating     Int
   text       String
-  createdAt  DateTime @default(now())
+  createdAt  DateTime        @default(now())
   contract   Contract        @relation(fields: [contractId], references: [id])
   employee   EmployeeProfile @relation(fields: [employeeId], references: [id])
   customer   User            @relation(fields: [customerId], references: [id])

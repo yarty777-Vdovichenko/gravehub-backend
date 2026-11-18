@@ -6,6 +6,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateContractDto } from './dto/CreateContract.dto';
 import { Prisma } from '@prisma/client';
+import { ContractLocationType } from '@prisma/client';
 import { ContractsQueryDto } from './dto/contracts-query.dto';
 import { buildContractWhere } from './contracts-query.util';
 
@@ -24,13 +25,65 @@ export class ContractsService {
 
     if (!region) throw new BadRequestException('regionId is invalid');
 
+    const locationType =
+      dto.locationType ?? ContractLocationType.coordinates;
+    let positionX: number | null = null;
+    let positionY: number | null = null;
+    let address: string | null = null;
+    let burialPlotId: string | null = null;
+
+    if (locationType === ContractLocationType.coordinates) {
+      if (dto.positionX === undefined || dto.positionY === undefined) {
+        throw new BadRequestException(
+          'positionX and positionY are required for coordinate location',
+        );
+      }
+      positionX = dto.positionX;
+      positionY = dto.positionY;
+    } else if (locationType === ContractLocationType.burial_plot) {
+      if (!dto.burialPlotId) {
+        throw new BadRequestException(
+          'burialPlotId is required for burial plot location',
+        );
+      }
+      const plot = await this.prisma.burialPlot.findUnique({
+        where: { id: dto.burialPlotId },
+        include: {
+          cemetery: {
+            select: {
+              latitude: true,
+              longitude: true,
+              name: true,
+              city: true,
+            },
+          },
+        },
+      });
+      if (!plot) throw new BadRequestException('burialPlotId is invalid');
+
+      burialPlotId = plot.id;
+      positionX = plot.cemetery.latitude;
+      positionY = plot.cemetery.longitude;
+      address = `${plot.cemetery.city}, ${plot.cemetery.name}`;
+    } else if (locationType === ContractLocationType.address) {
+      if (!dto.address?.trim()) {
+        throw new BadRequestException(
+          'address is required for address location',
+        );
+      }
+      address = dto.address.trim();
+    }
+
     return this.prisma.contract.create({
       data: {
         title: dto.title,
         description: dto.description,
         regionId: dto.regionId,
-        positionX: dto.positionX,
-        positionY: dto.positionY,
+        locationType,
+        positionX,
+        positionY,
+        address,
+        burialPlotId,
         date: dto.date,
         budget: dto.budget,
         customerId: userId,
