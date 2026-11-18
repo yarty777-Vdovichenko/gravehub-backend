@@ -25,8 +25,7 @@ export class ContractsService {
 
     if (!region) throw new BadRequestException('regionId is invalid');
 
-    const locationType =
-      dto.locationType ?? ContractLocationType.coordinates;
+    const locationType = dto.locationType ?? ContractLocationType.coordinates;
     let positionX: number | null = null;
     let positionY: number | null = null;
     let address: string | null = null;
@@ -57,10 +56,15 @@ export class ContractsService {
               city: true,
             },
           },
+          purchase: { select: { userId: true } },
         },
       });
       if (!plot) throw new BadRequestException('burialPlotId is invalid');
-      if (plot.status !== 'available') {
+      const isOwnedPlot =
+        plot.status === 'sold' &&
+        plot.ownerId === userId &&
+        plot.purchase?.userId === userId;
+      if (plot.status !== 'available' && !isOwnedPlot) {
         throw new BadRequestException(
           'Selected burial plot is reserved or sold',
         );
