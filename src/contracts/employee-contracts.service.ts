@@ -32,6 +32,16 @@ export class EmployeeContractsService {
         include: {
           region: true,
           serviceTypes: true,
+          burialPlot: {
+            select: {
+              id: true,
+              positionX: true,
+              positionY: true,
+              cemetery: {
+                select: { id: true, name: true, city: true },
+              },
+            },
+          },
           customer: { select: { id: true, name: true } },
         },
         skip: (query.page - 1) * query.limit,
@@ -70,6 +80,16 @@ export class EmployeeContractsService {
       include: {
         region: true,
         serviceTypes: true,
+        burialPlot: {
+          select: {
+            id: true,
+            positionX: true,
+            positionY: true,
+            cemetery: {
+              select: { id: true, name: true, city: true },
+            },
+          },
+        },
         customer: { select: { id: true, name: true } },
       },
     });

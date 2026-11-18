@@ -60,6 +60,11 @@ export class ContractsService {
         },
       });
       if (!plot) throw new BadRequestException('burialPlotId is invalid');
+      if (plot.status !== 'available') {
+        throw new BadRequestException(
+          'Selected burial plot is reserved or sold',
+        );
+      }
 
       burialPlotId = plot.id;
       positionX = plot.cemetery.latitude;
@@ -91,7 +96,19 @@ export class ContractsService {
           connect: dto.serviceTypeIds.map((id) => ({ id })),
         },
       },
-      include: { serviceTypes: true },
+      include: {
+        serviceTypes: true,
+        burialPlot: {
+          select: {
+            id: true,
+            positionX: true,
+            positionY: true,
+            cemetery: {
+              select: { id: true, name: true, city: true },
+            },
+          },
+        },
+      },
     });
   }
 
@@ -130,7 +147,19 @@ export class ContractsService {
         orderBy: { [query.sortBy]: query.order },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
-        include: { serviceTypes: true },
+        include: {
+          serviceTypes: true,
+          burialPlot: {
+            select: {
+              id: true,
+              positionX: true,
+              positionY: true,
+              cemetery: {
+                select: { id: true, name: true, city: true },
+              },
+            },
+          },
+        },
       }),
       this.prisma.contract.count({ where }),
     ]);
@@ -150,6 +179,16 @@ export class ContractsService {
       where: { id, customerId: userId },
       include: {
         serviceTypes: true,
+        burialPlot: {
+          select: {
+            id: true,
+            positionX: true,
+            positionY: true,
+            cemetery: {
+              select: { id: true, name: true, city: true },
+            },
+          },
+        },
         review: {
           select: { id: true, rating: true, text: true, createdAt: true },
         },
