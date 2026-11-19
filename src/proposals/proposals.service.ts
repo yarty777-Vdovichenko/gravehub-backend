@@ -10,6 +10,7 @@ import { Prisma, ProposalStatus } from '@prisma/client';
 import { ListProposalsDto } from './dto/list-proposals.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { selectableServiceWhere } from 'src/services/services-query.util';
+import { AcceptProposalDto } from './dto/accept-proposal.dto';
 
 function coversServiceCategories(
   categoryIds: string[],
@@ -41,20 +42,31 @@ export class ProposalsService {
     if (!profile) throw new ForbiddenException('Employee profile not found');
     return profile.id;
   }
-  async accept(contractId: string, proposalId: string, userId: string) {
+  async accept(
+    contractId: string,
+    proposalId: string,
+    userId: string,
+    dto: AcceptProposalDto = {},
+  ) {
     const proposal = await this.prisma.proposal.findFirst({
       where: { id: proposalId, contractId, contract: { customerId: userId } },
       select: {
         id: true,
         employeeId: true,
         contract: {
-          select: { serviceTypes: { select: { id: true } } },
+          select: {
+            serviceTypes: { select: { id: true, name: true } },
+          },
         },
         employee: {
           select: {
             specialization: {
               where: selectableServiceWhere,
-              select: { parentId: true },
+              select: {
+                id: true,
+                name: true,
+                parentId: true,
+              },
             },
           },
         },
@@ -73,6 +85,48 @@ export class ProposalsService {
         'Employee does not offer all selected service categories',
       );
     }
+    const selections = dto.selections ?? [];
+    const categoryIds = proposal.contract.serviceTypes.map(({ id }) => id);
+    const uniqueCategoryIds = new Set(
+      selections.map(({ categoryId }) => categoryId),
+    );
+    if (
+      uniqueCategoryIds.size !== selections.length ||
+      selections.some(({ categoryId }) => !categoryIds.includes(categoryId))
+    ) {
+      throw new ConflictException(
+        'Invalid or duplicate service specification',
+      );
+    }
+    const specifications = selections.map((selection) => {
+      const category = proposal.contract.serviceTypes.find(
+        ({ id }) => id === selection.categoryId,
+      );
+      if (!selection.serviceId) {
+        return {
+          categoryId: selection.categoryId,
+          categoryName: category?.name,
+          note: selection.note?.trim() || undefined,
+        };
+      }
+      const offeredService = proposal.employee.specialization.find(
+        (service) =>
+          service.id === selection.serviceId &&
+          service.parentId === selection.categoryId,
+      );
+      if (!offeredService) {
+        throw new ConflictException(
+          'Selected service is not offered by the employee',
+        );
+      }
+      return {
+        categoryId: selection.categoryId,
+        categoryName: category?.name,
+        serviceId: offeredService.id,
+        serviceName: offeredService.name,
+        note: selection.note?.trim() || undefined,
+      };
+    });
     const outcome = await this.prisma.$transaction(async (tx) => {
       const c = await tx.contract.updateMany({
         where: {
@@ -84,6 +138,7 @@ export class ProposalsService {
         data: {
           status: 'in_progress',
           employeeId: proposal.employeeId,
+          specifications: specifications as Prisma.InputJsonValue,
         },
       });
       if (c.count === 0) {
@@ -280,6 +335,7 @@ export class ProposalsService {
               rating: true,
               reviewsCount: true,
               completedContracts: true,
+              user: { select: { id: true, name: true } },
               specialization: {
                 where: {
                   ...selectableServiceWhere,
