@@ -61,7 +61,7 @@ export class EmployeesService {
     }
 
     if (query.serviceId) {
-      where.specialization = { some: { id: query.serviceId } };
+      where.specialization = { some: { parentId: query.serviceId } };
     }
 
     if (query.minRating !== undefined) {

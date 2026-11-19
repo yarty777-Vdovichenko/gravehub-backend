@@ -9,6 +9,22 @@ import { CreateProposalDto } from './dto/create-proposal.dto';
 import { Prisma, ProposalStatus } from '@prisma/client';
 import { ListProposalsDto } from './dto/list-proposals.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { selectableServiceWhere } from 'src/services/services-query.util';
+
+function coversServiceCategories(
+  categoryIds: string[],
+  specializations: { parentId: string | null }[],
+) {
+  const employeeCategoryIds = new Set(
+    specializations.flatMap(({ parentId }) =>
+      parentId === null ? [] : [parentId],
+    ),
+  );
+  return (
+    categoryIds.length > 0 &&
+    categoryIds.every((categoryId) => employeeCategoryIds.has(categoryId))
+  );
+}
 
 @Injectable()
 export class ProposalsService {
@@ -28,10 +44,34 @@ export class ProposalsService {
   async accept(contractId: string, proposalId: string, userId: string) {
     const proposal = await this.prisma.proposal.findFirst({
       where: { id: proposalId, contractId, contract: { customerId: userId } },
-      select: { id: true, employeeId: true },
+      select: {
+        id: true,
+        employeeId: true,
+        contract: {
+          select: { serviceTypes: { select: { id: true } } },
+        },
+        employee: {
+          select: {
+            specialization: {
+              where: selectableServiceWhere,
+              select: { parentId: true },
+            },
+          },
+        },
+      },
     });
     if (!proposal) {
       throw new NotFoundException('Proposal not found');
+    }
+    if (
+      !coversServiceCategories(
+        proposal.contract.serviceTypes.map(({ id }) => id),
+        proposal.employee.specialization,
+      )
+    ) {
+      throw new ConflictException(
+        'Employee does not offer all selected service categories',
+      );
     }
     const outcome = await this.prisma.$transaction(async (tx) => {
       const c = await tx.contract.updateMany({
@@ -103,9 +143,19 @@ export class ProposalsService {
   async propose(contractId: string, userId: string, dto: CreateProposalDto) {
     const profile = await this.prisma.employeeProfile.findUnique({
       where: { userId },
-      select: { id: true },
+      select: {
+        id: true,
+        specialization: { select: { parentId: true } },
+      },
     });
     if (!profile) throw new ForbiddenException('Employee profile not found');
+    const serviceCategoryIds = [
+      ...new Set(
+        profile.specialization
+          .map(({ parentId }) => parentId)
+          .filter((parentId): parentId is string => parentId !== null),
+      ),
+    ];
 
     const contract = await this.prisma.contract.findFirst({
       where: {
@@ -113,6 +163,7 @@ export class ProposalsService {
         status: 'open',
         customerId: { not: userId },
         region: { employees: { some: { userId } } },
+        serviceTypes: { every: { id: { in: serviceCategoryIds } } },
       },
       select: { id: true },
     });
@@ -199,9 +250,13 @@ export class ProposalsService {
   ) {
     const owned = await this.prisma.contract.findFirst({
       where: { id: contractId, customerId: userId },
-      select: { id: true },
+      select: {
+        id: true,
+        serviceTypes: { select: { id: true } },
+      },
     });
     if (!owned) throw new NotFoundException('Contract not found');
+    const serviceCategoryIds = owned.serviceTypes.map(({ id }) => id);
 
     const where: Prisma.ProposalWhereInput = {
       contractId,
@@ -225,6 +280,19 @@ export class ProposalsService {
               rating: true,
               reviewsCount: true,
               completedContracts: true,
+              specialization: {
+                where: {
+                  ...selectableServiceWhere,
+                  parentId: { in: serviceCategoryIds },
+                },
+                orderBy: { name: 'asc' },
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  parent: { select: { id: true, name: true } },
+                },
+              },
             },
           },
         },
