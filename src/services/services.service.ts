@@ -11,21 +11,37 @@ export class ServicesService {
     return this.prisma.service.findMany({
       where: {
         parentId: null,
-        children: { some: selectableServiceWhere },
+        children: { some: {} },
       },
       orderBy: { name: 'asc' },
       select: {
         id: true,
         name: true,
         description: true,
+        price: true,
+        parentId: true,
         children: {
-          where: selectableServiceWhere,
+          where: { parentId: { not: null } },
           orderBy: { name: 'asc' },
           select: {
             id: true,
             name: true,
             description: true,
             price: true,
+            parentId: true,
+            children: {
+              where: {
+                ...selectableServiceWhere,
+              },
+              orderBy: { name: 'asc' },
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                parentId: true,
+              },
+            },
           },
         },
       },

@@ -28,12 +28,24 @@ describe('ServicesService', () => {
         id: 'category-1',
         name: 'Monuments',
         description: 'Monument services',
+        price: null,
+        parentId: null,
         children: [
           {
-            id: 'service-1',
-            name: 'Granite monument',
-            description: 'A granite monument',
-            price: 100,
+            id: 'group-1',
+            name: 'Monument type',
+            description: 'Choose a monument type',
+            price: null,
+            parentId: 'category-1',
+            children: [
+              {
+                id: 'service-1',
+                name: 'Granite monument',
+                description: 'A granite monument',
+                price: 100,
+                parentId: 'group-1',
+              },
+            ],
           },
         ],
       },
@@ -44,31 +56,39 @@ describe('ServicesService', () => {
     expect(findMany).toHaveBeenCalledWith({
       where: {
         parentId: null,
-        children: {
-          some: {
-            parentId: { not: null },
-            price: { not: null },
-            children: { none: {} },
-          },
-        },
+        children: { some: {} },
       },
       orderBy: { name: 'asc' },
       select: {
         id: true,
         name: true,
         description: true,
+        price: true,
+        parentId: true,
         children: {
-          where: {
-            parentId: { not: null },
-            price: { not: null },
-            children: { none: {} },
-          },
+          where: { parentId: { not: null } },
           orderBy: { name: 'asc' },
           select: {
             id: true,
             name: true,
             description: true,
             price: true,
+            parentId: true,
+            children: {
+              where: {
+                parentId: { not: null },
+                price: { not: null },
+                children: { none: {} },
+              },
+              orderBy: { name: 'asc' },
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                parentId: true,
+              },
+            },
           },
         },
       },
