@@ -4,6 +4,9 @@ import {
   IsString,
   Min,
   MinLength,
+  IsOptional,
+  IsUUID,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateServiceDto {
@@ -17,7 +20,12 @@ export class CreateServiceDto {
   @IsString()
   description!: string;
 
+  @ValidateIf((_object, value) => value !== undefined)
   @Min(0)
   @IsNumber()
-  price!: number;
+  price?: number;
+
+  @IsOptional()
+  @IsUUID()
+  parentId?: string;
 }
