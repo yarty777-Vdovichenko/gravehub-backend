@@ -135,7 +135,6 @@ model Contract {
   positionY    Float?
   address      String?
   burialPlotId String?
-  specifications Json?
   date         DateTime
   budget       Float
   createdAt    DateTime             @default(now())

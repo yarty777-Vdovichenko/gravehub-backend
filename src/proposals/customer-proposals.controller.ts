@@ -1,6 +1,5 @@
 import {
   Controller,
-  Body,
   Get,
   Param,
   ParseUUIDPipe,
@@ -15,7 +14,6 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { ProposalsService } from './proposals.service';
 import { ListProposalsDto } from './dto/list-proposals.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
-import { AcceptProposalDto } from './dto/accept-proposal.dto';
 
 type AuthReq = Request & { user: { userId: string; role: string } };
 
@@ -29,15 +27,9 @@ export class CustomerProposalsController {
   accept(
     @Param('contractId', ParseUUIDPipe) contractId: string,
     @Param('id', ParseUUIDPipe) proposalId: string,
-    @Body() dto: AcceptProposalDto,
     @Req() req: AuthReq,
   ) {
-    return this.proposals.accept(
-      contractId,
-      proposalId,
-      req.user.userId,
-      dto,
-    );
+    return this.proposals.accept(contractId, proposalId, req.user.userId);
   }
 
   @Post(':contractId/proposals/:id/reject')

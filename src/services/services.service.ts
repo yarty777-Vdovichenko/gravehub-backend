@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateServiceDto } from './dto/createService.dto';
-import {
-  selectableServiceWhere,
-  serviceCategoryWhere,
-} from './services-query.util';
+import { selectableServiceWhere } from './services-query.util';
 
 @Injectable()
 export class ServicesService {
@@ -12,7 +9,10 @@ export class ServicesService {
 
   getAll() {
     return this.prisma.service.findMany({
-      where: serviceCategoryWhere,
+      where: {
+        parentId: null,
+        children: { some: selectableServiceWhere },
+      },
       orderBy: { name: 'asc' },
       select: {
         id: true,

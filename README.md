@@ -19,10 +19,10 @@ University coursework project. This repository contains the backend only; the Re
 - Role-based access: customer endpoints and employee endpoints are separated by the active mode and return 403 otherwise.
 - Public reference data: hierarchical service categories and selectable subservices, plus regions, seeded with fixed UUIDs (idempotent seed).
 - Customer contracts: create, list own, view one, delete (only while `open` and without an assigned employee).
-- Employee feed: open contracts in the employee's regions that match their service categories, plus contract details.
-- Employee search: search and filter providers by name, region, service category and rating.
+- Employee feed: search and filter open contracts in the employee's regions, plus contract details.
+- Employee search: search and filter providers by name, region, service and rating.
 - Employee profiles: edit the description, services and regions, and upload photo/video work samples to Cloudinary.
-- Proposals: employees can propose only for categories covered by their profile; customers see each employee's matching subservices, rating, review count and completed contracts.
+- Proposals: an employee submits one proposal per contract, can cancel it while it is `pending`, and customers list proposals for their contract with the employee's rating, review count and completed contracts.
 - Accepting a proposal is a single operation: the contract moves to `in_progress` with the executor assigned, the chosen proposal becomes `accepted`, all other pending proposals become `rejected`.
 - Contract lifecycle: `open` -> `in_progress` -> `awaiting_confirmation` -> `completed`, with the option for the customer to send the work back (`awaiting_confirmation` -> `in_progress`). Invalid transitions return 409.
 - Reviews and rating: confirming a contract creates a review (rating 1-5, text up to 1000 characters) in the same step. Employee rating, reviews count and completed contracts are derived from reviews. Reviews of an employee are available with pagination.
@@ -112,11 +112,11 @@ npm test -- --runInBand plots/credit.spec.ts
 
 Authenticated employees can upload JPEG, PNG, WebP, MP4, WebM, and MOV files (up to 50 MB each) as multipart form data using the `file` field; `caption` is optional. Public employee profiles include the uploaded work samples.
 
-`GET /services` returns categories with their selectable subservices. Employee profiles store subservice IDs; contracts store parent category IDs. Employees can only propose for contracts whose categories their profile covers, and customer proposal listings show the matching subservices for each employee.
+`GET /services` returns categories with their selectable subservices. Employee profiles and contracts store subservice IDs only; category IDs cannot be selected. Each subservice carries its own price.
 
 The profile update accepts any combination of `description`, `specializationIds` and `regionIds`. `specializationIds` must contain subservice IDs. Supplying a service or region array replaces the whole list; use an empty array to remove all entries from that list. Omitted fields remain unchanged.
 
-To estimate a contract, send `POST /contracts/estimate` with parent category IDs in `serviceTypeIds`. The response contains a `minPrice`/`maxPrice` range for each category and combined `minEstimatedPrice`/`maxEstimatedPrice` values. The customer enters the contract budget manually.
+To estimate a contract budget, send `POST /contracts/estimate` with `{ "serviceTypeIds": ["<service-uuid>", "..."] }`. The response contains each selected service's price and their total in `estimatedPrice`; the amount is an estimate based on the current service prices.
 
 ## Chat and Real-Time Events
 

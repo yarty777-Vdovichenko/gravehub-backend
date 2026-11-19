@@ -9,23 +9,6 @@ import { CreateProposalDto } from './dto/create-proposal.dto';
 import { Prisma, ProposalStatus } from '@prisma/client';
 import { ListProposalsDto } from './dto/list-proposals.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { selectableServiceWhere } from 'src/services/services-query.util';
-import { AcceptProposalDto } from './dto/accept-proposal.dto';
-
-function coversServiceCategories(
-  categoryIds: string[],
-  specializations: { parentId: string | null }[],
-) {
-  const employeeCategoryIds = new Set(
-    specializations.flatMap(({ parentId }) =>
-      parentId === null ? [] : [parentId],
-    ),
-  );
-  return (
-    categoryIds.length > 0 &&
-    categoryIds.every((categoryId) => employeeCategoryIds.has(categoryId))
-  );
-}
 
 @Injectable()
 export class ProposalsService {
@@ -42,91 +25,14 @@ export class ProposalsService {
     if (!profile) throw new ForbiddenException('Employee profile not found');
     return profile.id;
   }
-  async accept(
-    contractId: string,
-    proposalId: string,
-    userId: string,
-    dto: AcceptProposalDto = {},
-  ) {
+  async accept(contractId: string, proposalId: string, userId: string) {
     const proposal = await this.prisma.proposal.findFirst({
       where: { id: proposalId, contractId, contract: { customerId: userId } },
-      select: {
-        id: true,
-        employeeId: true,
-        contract: {
-          select: {
-            serviceTypes: { select: { id: true, name: true } },
-          },
-        },
-        employee: {
-          select: {
-            specialization: {
-              where: selectableServiceWhere,
-              select: {
-                id: true,
-                name: true,
-                parentId: true,
-              },
-            },
-          },
-        },
-      },
+      select: { id: true, employeeId: true },
     });
     if (!proposal) {
       throw new NotFoundException('Proposal not found');
     }
-    if (
-      !coversServiceCategories(
-        proposal.contract.serviceTypes.map(({ id }) => id),
-        proposal.employee.specialization,
-      )
-    ) {
-      throw new ConflictException(
-        'Employee does not offer all selected service categories',
-      );
-    }
-    const selections = dto.selections ?? [];
-    const categoryIds = proposal.contract.serviceTypes.map(({ id }) => id);
-    const uniqueCategoryIds = new Set(
-      selections.map(({ categoryId }) => categoryId),
-    );
-    if (
-      uniqueCategoryIds.size !== selections.length ||
-      selections.some(({ categoryId }) => !categoryIds.includes(categoryId))
-    ) {
-      throw new ConflictException(
-        'Invalid or duplicate service specification',
-      );
-    }
-    const specifications = selections.map((selection) => {
-      const category = proposal.contract.serviceTypes.find(
-        ({ id }) => id === selection.categoryId,
-      );
-      if (!selection.serviceId) {
-        return {
-          categoryId: selection.categoryId,
-          categoryName: category?.name,
-          note: selection.note?.trim() || undefined,
-        };
-      }
-      const offeredService = proposal.employee.specialization.find(
-        (service) =>
-          service.id === selection.serviceId &&
-          service.parentId === selection.categoryId,
-      );
-      if (!offeredService) {
-        throw new ConflictException(
-          'Selected service is not offered by the employee',
-        );
-      }
-      return {
-        categoryId: selection.categoryId,
-        categoryName: category?.name,
-        serviceId: offeredService.id,
-        serviceName: offeredService.name,
-        note: selection.note?.trim() || undefined,
-      };
-    });
     const outcome = await this.prisma.$transaction(async (tx) => {
       const c = await tx.contract.updateMany({
         where: {
@@ -138,7 +44,6 @@ export class ProposalsService {
         data: {
           status: 'in_progress',
           employeeId: proposal.employeeId,
-          specifications: specifications as Prisma.InputJsonValue,
         },
       });
       if (c.count === 0) {
@@ -198,19 +103,9 @@ export class ProposalsService {
   async propose(contractId: string, userId: string, dto: CreateProposalDto) {
     const profile = await this.prisma.employeeProfile.findUnique({
       where: { userId },
-      select: {
-        id: true,
-        specialization: { select: { parentId: true } },
-      },
+      select: { id: true },
     });
     if (!profile) throw new ForbiddenException('Employee profile not found');
-    const serviceCategoryIds = [
-      ...new Set(
-        profile.specialization
-          .map(({ parentId }) => parentId)
-          .filter((parentId): parentId is string => parentId !== null),
-      ),
-    ];
 
     const contract = await this.prisma.contract.findFirst({
       where: {
@@ -218,7 +113,6 @@ export class ProposalsService {
         status: 'open',
         customerId: { not: userId },
         region: { employees: { some: { userId } } },
-        serviceTypes: { every: { id: { in: serviceCategoryIds } } },
       },
       select: { id: true },
     });
@@ -305,13 +199,9 @@ export class ProposalsService {
   ) {
     const owned = await this.prisma.contract.findFirst({
       where: { id: contractId, customerId: userId },
-      select: {
-        id: true,
-        serviceTypes: { select: { id: true } },
-      },
+      select: { id: true },
     });
     if (!owned) throw new NotFoundException('Contract not found');
-    const serviceCategoryIds = owned.serviceTypes.map(({ id }) => id);
 
     const where: Prisma.ProposalWhereInput = {
       contractId,
@@ -335,20 +225,6 @@ export class ProposalsService {
               rating: true,
               reviewsCount: true,
               completedContracts: true,
-              user: { select: { id: true, name: true } },
-              specialization: {
-                where: {
-                  ...selectableServiceWhere,
-                  parentId: { in: serviceCategoryIds },
-                },
-                orderBy: { name: 'asc' },
-                select: {
-                  id: true,
-                  name: true,
-                  price: true,
-                  parent: { select: { id: true, name: true } },
-                },
-              },
             },
           },
         },

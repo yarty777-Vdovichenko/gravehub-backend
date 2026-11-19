@@ -33,103 +33,51 @@ describe('ContractsService price estimate', () => {
     service = moduleRef.get(ContractsService);
   });
 
-  it('returns a price range for each parent service and totals the ranges', async () => {
-    const selectedCategories = [
-      {
-        id: 'category-1',
-        name: 'Category one',
-        children: [
-          { id: 'service-1', name: 'Service one', price: 10.1 },
-          { id: 'service-2', name: 'Service two', price: 20.2 },
-        ],
-      },
-      {
-        id: 'category-2',
-        name: 'Category two',
-        children: [
-          { id: 'service-3', name: 'Service three', price: 5.25 },
-          { id: 'service-4', name: 'Service four', price: 7 },
-        ],
-      },
+  it('returns selected service prices and their rounded total', async () => {
+    const selectedServices = [
+      { id: 'service-1', name: 'Service one', price: 10.1 },
+      { id: 'service-2', name: 'Service two', price: 20.2 },
     ];
-    findServices.mockResolvedValue(selectedCategories);
+    findServices.mockResolvedValue(selectedServices);
 
     await expect(
-      service.estimatePrice(['category-1', 'category-2']),
+      service.estimatePrice(['service-1', 'service-2']),
     ).resolves.toEqual({
-      services: [
-        {
-          id: 'category-1',
-          name: 'Category one',
-          minPrice: 10.1,
-          maxPrice: 20.2,
-        },
-        {
-          id: 'category-2',
-          name: 'Category two',
-          minPrice: 5.25,
-          maxPrice: 7,
-        },
-      ],
-      minEstimatedPrice: 15.35,
-      maxEstimatedPrice: 27.2,
+      services: selectedServices,
+      estimatedPrice: 30.3,
     });
   });
 
   it('rejects the estimate when any selected service does not exist', async () => {
     findServices.mockResolvedValue([
-      {
-        id: 'category-1',
-        name: 'Category one',
-        children: [{ id: 'service-1', name: 'Service one', price: 10 }],
-      },
+      { id: 'service-1', name: 'Service one', price: 10 },
     ]);
 
     await expect(
-      service.estimatePrice(['category-1', 'missing-category']),
+      service.estimatePrice(['service-1', 'missing-service']),
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('rejects a child service id when estimating contract categories', async () => {
+  it('rejects a parent category when estimating contract services', async () => {
     findServices.mockResolvedValue([]);
 
-    await expect(service.estimatePrice(['service-1'])).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.estimatePrice(['category-1']),
+    ).rejects.toThrow(BadRequestException);
     expect(findServices).toHaveBeenCalledWith({
       where: {
-        id: { in: ['service-1'] },
-        parentId: null,
-        children: {
-          some: {
-            parentId: { not: null },
-            price: { not: null },
-            children: { none: {} },
-          },
-        },
+        id: { in: ['category-1'] },
+        parentId: { not: null },
+        price: { not: null },
+        children: { none: {} },
       },
-      select: {
-        id: true,
-        name: true,
-        children: {
-          where: {
-            parentId: { not: null },
-            price: { not: null },
-            children: { none: {} },
-          },
-          select: { id: true, name: true, price: true },
-        },
-      },
+      select: { id: true, name: true, price: true },
     });
   });
 
   it('allows the customer to create a contract for their purchased plot', async () => {
     findServices.mockResolvedValue([
-      {
-        id: 'category-1',
-        name: 'Category',
-        children: [{ id: 'service-1', name: 'Service', price: 10 }],
-      },
+      { id: 'service-1', name: 'Service', price: 10 },
     ]);
     findRegion.mockResolvedValue({ id: 'region-1' });
     findPlot.mockResolvedValue({
@@ -149,7 +97,7 @@ describe('ContractsService price estimate', () => {
     await service.create('customer-1', {
       title: 'Plot care',
       description: 'Care for the purchased plot',
-      serviceTypeIds: ['category-1'],
+      serviceTypeIds: ['service-1'],
       regionId: 'region-1',
       locationType: 'burial_plot',
       burialPlotId: 'plot-1',
@@ -170,26 +118,11 @@ describe('ContractsService price estimate', () => {
         date: new Date('2030-01-01T10:00:00.000Z'),
         budget: 100,
         customerId: 'customer-1',
-        serviceTypes: { connect: [{ id: 'category-1' }] },
+        serviceTypes: { connect: [{ id: 'service-1' }] },
       },
       include: {
         serviceTypes: {
-          include: {
-            children: {
-              where: {
-                parentId: { not: null },
-                price: { not: null },
-                children: { none: {} },
-              },
-              orderBy: { name: 'asc' },
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                price: true,
-              },
-            },
-          },
+          include: { parent: { select: { id: true, name: true } } },
         },
         burialPlot: {
           select: {
@@ -205,11 +138,7 @@ describe('ContractsService price estimate', () => {
 
   it('rejects a sold plot purchased by another customer', async () => {
     findServices.mockResolvedValue([
-      {
-        id: 'category-1',
-        name: 'Category',
-        children: [{ id: 'service-1', name: 'Service', price: 10 }],
-      },
+      { id: 'service-1', name: 'Service', price: 10 },
     ]);
     findRegion.mockResolvedValue({ id: 'region-1' });
     findPlot.mockResolvedValue({
@@ -229,7 +158,7 @@ describe('ContractsService price estimate', () => {
       service.create('customer-1', {
         title: 'Plot care',
         description: 'Care for a plot',
-        serviceTypeIds: ['category-1'],
+        serviceTypeIds: ['service-1'],
         regionId: 'region-1',
         locationType: 'burial_plot',
         burialPlotId: 'plot-1',

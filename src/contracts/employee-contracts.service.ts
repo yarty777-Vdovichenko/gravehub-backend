@@ -7,7 +7,6 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ContractsQueryDto } from './dto/contracts-query.dto';
 import { buildContractWhere } from './contracts-query.util';
-import { serviceCategoryInclude } from 'src/services/services-query.util';
 
 @Injectable()
 export class EmployeeContractsService {
@@ -16,25 +15,14 @@ export class EmployeeContractsService {
   async getOpenContractsPaginated(query: ContractsQueryDto, userId: string) {
     const profile = await this.prisma.employeeProfile.findUnique({
       where: { userId },
-      select: {
-        regions: { select: { id: true } },
-        specialization: { select: { parentId: true } },
-      },
+      select: { regions: { select: { id: true } } },
     });
     const regionIds = profile?.regions.map((region) => region.id) ?? [];
-    const serviceCategoryIds = [
-      ...new Set(
-        (profile?.specialization ?? [])
-          .map(({ parentId }) => parentId)
-          .filter((parentId): parentId is string => parentId !== null),
-      ),
-    ];
     const where: Prisma.ContractWhereInput = {
       AND: [
         buildContractWhere(query),
         { status: 'open' },
         { regionId: { in: regionIds } },
-        { serviceTypes: { every: { id: { in: serviceCategoryIds } } } },
       ],
     };
 
@@ -43,7 +31,9 @@ export class EmployeeContractsService {
         where,
         include: {
           region: true,
-          serviceTypes: { include: serviceCategoryInclude },
+          serviceTypes: {
+            include: { parent: { select: { id: true, name: true } } },
+          },
           burialPlot: {
             select: {
               id: true,
@@ -77,37 +67,23 @@ export class EmployeeContractsService {
   async getOpenContractById(id: string, userId: string) {
     const profile = await this.prisma.employeeProfile.findUnique({
       where: { userId },
-      select: {
-        id: true,
-        specialization: { select: { parentId: true } },
-      },
+      select: { id: true },
     });
     if (!profile) throw new ForbiddenException('Employee profile not found');
-    const serviceCategoryIds = [
-      ...new Set(
-        profile.specialization
-          .map(({ parentId }) => parentId)
-          .filter((parentId): parentId is string => parentId !== null),
-      ),
-    ];
 
     const contract = await this.prisma.contract.findFirst({
       where: {
         id,
         OR: [
-          {
-            status: 'open',
-            region: { employees: { some: { userId } } },
-            serviceTypes: {
-              every: { id: { in: serviceCategoryIds } },
-            },
-          },
+          { status: 'open', region: { employees: { some: { userId } } } },
           { employeeId: profile.id },
         ],
       },
       include: {
         region: true,
-        serviceTypes: { include: serviceCategoryInclude },
+        serviceTypes: {
+          include: { parent: { select: { id: true, name: true } } },
+        },
         burialPlot: {
           select: {
             id: true,

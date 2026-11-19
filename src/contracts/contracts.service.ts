@@ -9,11 +9,7 @@ import { Prisma } from '@prisma/client';
 import { ContractLocationType } from '@prisma/client';
 import { ContractsQueryDto } from './dto/contracts-query.dto';
 import { buildContractWhere } from './contracts-query.util';
-import {
-  selectableServiceWhere,
-  serviceCategoryInclude,
-  serviceCategoryWhere,
-} from 'src/services/services-query.util';
+import { selectableServiceWhere } from 'src/services/services-query.util';
 
 @Injectable()
 export class ContractsService {
@@ -21,7 +17,7 @@ export class ContractsService {
 
   async create(userId: string, dto: CreateContractDto) {
     const [, region] = await Promise.all([
-      this.getServiceCategories(dto.serviceTypeIds),
+      this.getServices(dto.serviceTypeIds),
       this.prisma.region.findUnique({
         where: { id: dto.regionId },
         select: { id: true },
@@ -106,7 +102,9 @@ export class ContractsService {
         },
       },
       include: {
-        serviceTypes: { include: serviceCategoryInclude },
+        serviceTypes: {
+          include: { parent: { select: { id: true, name: true } } },
+        },
         burialPlot: {
           select: {
             id: true,
@@ -122,66 +120,35 @@ export class ContractsService {
   }
 
   async estimatePrice(serviceTypeIds: string[]) {
-    const categories = await this.getServiceCategories(serviceTypeIds);
-    const ranges = categories.map((category) => {
-      const children = category.children.filter(
-        (service): service is typeof service & { price: number } =>
-          service.price !== null,
-      );
-      if (children.length === 0) {
-        throw new BadRequestException(
-          'One or more service categories have no priced subservices',
-        );
-      }
-
-      return {
-        id: category.id,
-        name: category.name,
-        minPrice: children.reduce(
-          (min, service) => Math.min(min, service.price),
-          Infinity,
-        ),
-        maxPrice: children.reduce(
-          (max, service) => Math.max(max, service.price),
-          -Infinity,
-        ),
-      };
-    });
-    const roundPrice = (price: number) =>
-      Math.round((price + Number.EPSILON) * 100) / 100;
+    const services = await this.getServices(serviceTypeIds);
+    const total = services.reduce((sum, service) => sum + service.price, 0);
+    const estimatedPrice = Math.round((total + Number.EPSILON) * 100) / 100;
 
     return {
-      services: ranges,
-      minEstimatedPrice: roundPrice(
-        ranges.reduce((sum, range) => sum + range.minPrice, 0),
-      ),
-      maxEstimatedPrice: roundPrice(
-        ranges.reduce((sum, range) => sum + range.maxPrice, 0),
-      ),
+      services: services.map(({ id, name, price }) => ({ id, name, price })),
+      estimatedPrice,
     };
   }
 
-  private async getServiceCategories(serviceTypeIds: string[]) {
-    const categories = await this.prisma.service.findMany({
+  private async getServices(serviceTypeIds: string[]) {
+    const services = await this.prisma.service.findMany({
       where: {
         id: { in: serviceTypeIds },
-        ...serviceCategoryWhere,
+        ...selectableServiceWhere,
       },
-      select: {
-        id: true,
-        name: true,
-        children: {
-          where: selectableServiceWhere,
-          select: { id: true, name: true, price: true },
-        },
-      },
+      select: { id: true, name: true, price: true },
     });
 
-    if (categories.length !== serviceTypeIds.length) {
+    const pricedServices = services.filter(
+      (service): service is typeof service & { price: number } =>
+        service.price !== null,
+    );
+
+    if (pricedServices.length !== serviceTypeIds.length) {
       throw new BadRequestException('One or more serviceTypeIds are invalid');
     }
 
-    return categories;
+    return pricedServices;
   }
 
   async getMine(userId: string, query: ContractsQueryDto) {
@@ -196,7 +163,9 @@ export class ContractsService {
         skip: (query.page - 1) * query.limit,
         take: query.limit,
         include: {
-          serviceTypes: { include: serviceCategoryInclude },
+          serviceTypes: {
+            include: { parent: { select: { id: true, name: true } } },
+          },
           burialPlot: {
             select: {
               id: true,
@@ -226,7 +195,9 @@ export class ContractsService {
     const contract = await this.prisma.contract.findFirst({
       where: { id, customerId: userId },
       include: {
-        serviceTypes: { include: serviceCategoryInclude },
+        serviceTypes: {
+          include: { parent: { select: { id: true, name: true } } },
+        },
         burialPlot: {
           select: {
             id: true,
