@@ -22,6 +22,7 @@ export class EmployeeContractsService {
       AND: [
         buildContractWhere(query),
         { status: 'open' },
+        { customerId: { not: userId } },
         { regionId: { in: regionIds } },
       ],
     };
@@ -75,7 +76,11 @@ export class EmployeeContractsService {
       where: {
         id,
         OR: [
-          { status: 'open', region: { employees: { some: { userId } } } },
+          {
+            status: 'open',
+            customerId: { not: userId },
+            region: { employees: { some: { userId } } },
+          },
           { employeeId: profile.id },
         ],
       },
