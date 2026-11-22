@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { EmployeesQueryDto } from './dto/employees-query.dto';
 import { EmployeesService } from './employees.service';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
@@ -15,8 +15,11 @@ export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Get()
-  search(@Query() query: EmployeesQueryDto) {
-    return this.employeesService.search(query);
+  search(
+    @Query() query: EmployeesQueryDto,
+    @Req() req: { user: { userId: string } },
+  ) {
+    return this.employeesService.search(query, req.user.userId);
   }
 
   @Get(':id')

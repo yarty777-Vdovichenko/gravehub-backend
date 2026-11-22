@@ -53,8 +53,11 @@ export class EmployeesService {
     private readonly cloudinary: CloudinaryService,
   ) {}
 
-  async search(query: EmployeesQueryDto) {
+  async search(query: EmployeesQueryDto, excludeUserId?: string) {
     const where: Prisma.EmployeeProfileWhereInput = {};
+    if (excludeUserId) {
+      where.user = { is: { id: { not: excludeUserId } } };
+    }
 
     if (query.regionId) {
       where.regions = { some: { id: query.regionId } };
