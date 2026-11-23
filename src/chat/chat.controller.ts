@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
@@ -54,6 +55,32 @@ export class ChatController {
     );
     res.status(result.created ? HttpStatus.CREATED : HttpStatus.OK);
     return result.conversation;
+  }
+
+  @Post('by-contract/:contractId')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Open (or create) the conversation between the customer and the employee of a contract',
+  })
+  openForContract(
+    @Param('contractId', ParseUUIDPipe) contractId: string,
+    @Req() req: AuthRequest,
+  ) {
+    return this.chatService.openForContract(req.user.userId, contractId);
+  }
+
+  @Post('by-proposal/:proposalId')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Open (or create) the conversation between the customer and the author of a proposal',
+  })
+  openForProposal(
+    @Param('proposalId', ParseUUIDPipe) proposalId: string,
+    @Req() req: AuthRequest,
+  ) {
+    return this.chatService.openForProposal(req.user.userId, proposalId);
   }
 
   @Get()

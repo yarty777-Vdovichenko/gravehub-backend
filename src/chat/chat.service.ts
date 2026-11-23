@@ -30,10 +30,89 @@ export class ChatService {
       );
     }
 
+    return this.getOrCreateConversation(customerId, employee.userId);
+  }
+
+  async openForContract(userId: string, contractId: string) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+      select: {
+        customerId: true,
+        status: true,
+        employee: { select: { userId: true } },
+      },
+    });
+    if (!contract) {
+      throw new NotFoundException('Contract not found');
+    }
+
+    if (contract.customerId === userId) {
+      if (!contract.employee) {
+        throw new BadRequestException('Contract has no assigned employee yet');
+      }
+      const { conversation } = await this.getOrCreateConversation(
+        userId,
+        contract.employee.userId,
+      );
+      return conversation;
+    }
+
+    // Employee side: the assigned employee, or (before a proposal is
+    // submitted) any employee who is allowed to propose on this open contract.
+    let allowed = contract.employee?.userId === userId;
+    if (!allowed && !contract.employee && contract.status === 'open') {
+      const candidate = await this.prisma.contract.findFirst({
+        where: {
+          id: contractId,
+          status: 'open',
+          region: { employees: { some: { userId } } },
+        },
+        select: { id: true },
+      });
+      allowed = !!candidate;
+    }
+    if (!allowed) {
+      throw new NotFoundException('Contract not found');
+    }
+
+    const { conversation } = await this.getOrCreateConversation(
+      contract.customerId,
+      userId,
+    );
+    return conversation;
+  }
+
+  async openForProposal(userId: string, proposalId: string) {
+    const proposal = await this.prisma.proposal.findUnique({
+      where: { id: proposalId },
+      select: {
+        employee: { select: { userId: true } },
+        contract: { select: { customerId: true } },
+      },
+    });
+    if (
+      !proposal ||
+      (proposal.contract.customerId !== userId &&
+        proposal.employee.userId !== userId)
+    ) {
+      throw new NotFoundException('Proposal not found');
+    }
+
+    const { conversation } = await this.getOrCreateConversation(
+      proposal.contract.customerId,
+      proposal.employee.userId,
+    );
+    return conversation;
+  }
+
+  private async getOrCreateConversation(
+    customerId: string,
+    employeeUserId: string,
+  ) {
     const where = {
       customerId_employeeId: {
         customerId,
-        employeeId: employee.userId,
+        employeeId: employeeUserId,
       },
     };
     const existing = await this.prisma.conversation.findUnique({ where });
@@ -43,7 +122,7 @@ export class ChatService {
 
     try {
       const conversation = await this.prisma.conversation.create({
-        data: { customerId, employeeId: employee.userId },
+        data: { customerId, employeeId: employeeUserId },
       });
       return { conversation, created: true };
     } catch (error) {

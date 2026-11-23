@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { PlotStatus, Prisma, PrismaClient } from '@prisma/client';
+import { seedDemo } from './seed-demo';
 
 const prisma = new PrismaClient();
 
@@ -579,7 +580,7 @@ async function main() {
       create: r,
     });
   }
-
+  await seedDemo(prisma);
   console.log('Готово!');
 }
 
