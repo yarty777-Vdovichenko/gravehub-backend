@@ -15,6 +15,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginUserDTO } from './dto/LoginUser.dto';
 import { RegisterUserDTO } from './dto/RegisterUser.dto';
@@ -31,6 +32,10 @@ import {
   ResetPasswordDTO,
   VerifyEmailDTO,
 } from './dto/EmailFlow.dto';
+
+// Ліміти за IP на ендпоінти, що відправляють листи.
+const MAIL_THROTTLE = { default: { limit: 5, ttl: 10 * 60 * 1000 } };
+const REGISTER_THROTTLE = { default: { limit: 10, ttl: 60 * 60 * 1000 } };
 
 const REFRESH_COOKIE = 'refreshToken';
 const isProd = process.env.NODE_ENV === 'production';
@@ -80,6 +85,8 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Реєстрація користувача' })
   @Post('register')
+  @UseGuards(ThrottlerGuard)
+  @Throttle(REGISTER_THROTTLE)
   register(@Body() dto: RegisterUserDTO) {
     return this.authService.register(dto);
   }
@@ -193,6 +200,8 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Повторно надіслати лист підтвердження пошти' })
   @Post('resend-verification')
+  @UseGuards(ThrottlerGuard)
+  @Throttle(MAIL_THROTTLE)
   @HttpCode(200)
   async resendVerification(@Body() dto: ResendVerificationDTO) {
     const user = await this.authService.findUserIdByEmail(dto.email);
@@ -209,6 +218,8 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Запросити відновлення пароля' })
   @Post('forgot-password')
+  @UseGuards(ThrottlerGuard)
+  @Throttle(MAIL_THROTTLE)
   @HttpCode(200)
   forgotPassword(@Body() dto: ForgotPasswordDTO) {
     return this.authService.forgotPassword(dto.email);

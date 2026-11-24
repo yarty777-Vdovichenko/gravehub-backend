@@ -10,10 +10,13 @@ import { EmployeesModule } from './employees/employees.module';
 import { PlotsModule } from './plots/plots.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ChatModule } from './chat/chat.module';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
+    // Guard підключається точково (див. AuthController), глобально ліміт не діє.
+    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 60 }]),
     PrismaModule,
     EventEmitterModule.forRoot(),
     AuthModule,

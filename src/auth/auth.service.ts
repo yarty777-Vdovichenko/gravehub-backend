@@ -374,8 +374,15 @@ export class AuthService {
     });
 
     if (user) {
-      const token = await this.tokens.create(user.id, 'password_reset', 60);
-      void this.mail.sendPasswordReset(user.email, token);
+      try {
+        const token = await this.tokens.create(user.id, 'password_reset', 60);
+        void this.mail.sendPasswordReset(user.email, token).catch(() => {
+          // помилку SMTP вже залоговано в MailService
+        });
+      } catch {
+        // Ліміт листів перевищено — відповідаємо так само,
+        // щоб не розкривати, чи існує акаунт.
+      }
     }
 
     return {
